@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tender Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root[data-theme=light]{
+  --canvas:#ECEEF1;--surface:#fff;--surface-2:#F5F7F9;--surface-3:#EAEEF2;
+  --ink:#0E1A25;--ink-2:#4A5C6E;--ink-3:#7F91A2;
+  --accent:#0B4F5F;--mint:#0F9E8C;--amber:#BE7C0C;--red:#B33A30;
+  --line:#D6DDE4;--line-2:#E7EBF0;--shadow:0 1px 2px rgba(14,26,37,.05);
+}
+:root[data-theme=dark]{
+  --canvas:#0B1219;--surface:#111C25;--surface-2:#16232E;--surface-3:#1C2C38;
+  --ink:#E8EEF3;--ink-2:#9DB0C0;--ink-3:#6B808F;
+  --accent:#2FA8BD;--mint:#25C4AC;--amber:#D89A32;--red:#D95F53;
+  --line:#233544;--line-2:#1B2B37;--shadow:0 1px 2px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--canvas);color:var(--ink);font:15px/1.55 'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+h1,h2,h3,h4{font-family:'Inter Tight',sans-serif;letter-spacing:-.025em}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--mint);outline-offset:2px}
+.wrap{max-width:1480px;margin:0 auto;padding:0 22px}
+
+#gate{position:fixed;inset:0;background:#0B1219;display:grid;place-items:center;z-index:100}
+.gatebox{width:min(370px,90vw);text-align:center}
+.gatebox h1{color:#fff;font-size:30px;font-weight:800;margin-bottom:5px}
+.gatebox p{color:#6B808F;font-size:13px;margin-bottom:26px}
+.gatebox input{width:100%;padding:12px 14px;border:1px solid #233544;border-radius:4px;background:#16232E;color:#fff;font:inherit;text-align:center;letter-spacing:.12em}
+.gatebox button{width:100%;margin-top:9px;padding:12px;background:#25C4AC;color:#052722;border-radius:4px;font-family:'Inter Tight';font-weight:700;font-size:14px}
+.gerr{color:#D95F53;font-size:12.5px;margin-top:10px;min-height:16px}
+
+.appbar{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40}
+.appbar .wrap{display:flex;align-items:center;gap:10px;height:58px}
+.appbar .spacer{margin-left:auto}
+.appbar .tools{display:flex;align-items:center;gap:9px;padding-left:18px;margin-left:8px;border-left:1px solid var(--line-2)}
+.brand b{font-family:'Inter Tight';font-weight:800;font-size:17px;letter-spacing:-.035em}
+.brand span{font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-3);margin-left:8px}
+.hstrip{display:flex;gap:5px;margin-left:auto;flex-wrap:wrap}
+.hpill{display:flex;align-items:center;gap:6px;padding:4px 9px;border-radius:100px;background:var(--surface-2);border:1px solid var(--line-2);font-size:11px;color:var(--ink-2)}
+.hpill i{width:6px;height:6px;border-radius:50%;display:block}
+.hpill b{font-family:'JetBrains Mono';font-weight:600;color:var(--ink);font-size:11px}
+.hpill.ok i{background:var(--mint)}.hpill.bad i{background:var(--red)}.hpill.stale i{background:var(--amber)}
+.iconbtn{padding:6px 11px;border:1px solid var(--line);border-radius:100px;font-size:12px;color:var(--ink-2);white-space:nowrap}
+.iconbtn:hover{background:var(--surface-2)}
+
+.tabbar{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:54px;z-index:30}
+.tabbar .wrap{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.tabbar .wrap::-webkit-scrollbar{display:none}
+.tab{padding:11px 15px 9px;font-family:'Inter Tight';font-weight:600;font-size:13.5px;color:var(--ink-3);border-bottom:2px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:7px;cursor:pointer;position:relative}
+.tab::before{content:'';position:absolute;left:15px;right:15px;top:6px;height:2px;border-radius:2px;background:transparent}
+.tab.t-brief[aria-selected=true]::before{background:var(--mint)}
+.tab.t-feed[aria-selected=true]::before{background:var(--accent)}
+.tab.t-intel[aria-selected=true]::before{background:#C0392B}
+.tab.t-papers[aria-selected=true]::before{background:#8A6A3F}
+.tab.t-overview[aria-selected=true]::before{background:#7C6BD6}
+.tab.t-contacts[aria-selected=true]::before{background:#C97C3A}
+.tab.t-reconcile[aria-selected=true]::before{background:#2F8F63}
+.tab.t-ask[aria-selected=true]::before{background:#B5566E}
+.tab.t-filler[aria-selected=true]::before{background:#3D7EA6}
+.tab.t-method[aria-selected=true]::before{background:var(--ink-3)}
+.tab.t-detail{font-weight:500;font-style:normal;color:var(--ink-2)}
+.tab:hover{color:var(--ink-2)}
+.tab[aria-selected=true]{color:var(--accent);border-bottom-color:var(--accent)}
+.tab .n{font-family:'JetBrains Mono';font-size:10.5px;font-weight:600;padding:1px 5px;border-radius:2px;background:var(--surface-3);color:var(--ink-3)}
+.tab[aria-selected=true] .n{background:var(--accent);color:#fff}
+.tab .x{margin-left:2px;opacity:.45;font-size:16px;line-height:1}
+.tab .x:hover{opacity:1}
+
+.panel{display:none;padding:40px 0 64px}
+.panel.on{display:block}
+.cols{display:grid;grid-template-columns:238px 1fr;gap:20px;align-items:start}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:4px;box-shadow:var(--shadow)}
+
+.rail{position:sticky;top:110px;max-height:calc(100vh - 130px);overflow:auto}
+.fgroup{padding:13px 14px;border-bottom:1px solid var(--line-2)}
+.fgroup:last-child{border:none}
+.fgroup h4{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.fgroup h4 button{font-size:9.5px;color:var(--accent);letter-spacing:0;text-transform:none}
+.chk{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12.5px;color:var(--ink-2);cursor:pointer}
+.chk input{accent-color:var(--accent);width:14px;height:14px;flex:none}
+.chk .c{margin-left:auto;font-family:'JetBrains Mono';font-size:10.5px;color:var(--ink-3)}
+.chk .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seg{display:flex;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.seg button{flex:1;padding:6px 2px;font-size:11.5px;color:var(--ink-2);background:var(--surface)}
+.seg button[aria-pressed=true]{background:var(--accent);color:#fff}
+.srch{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;font:inherit;font-size:13px;background:var(--surface);color:var(--ink)}
+
+.lhead{display:flex;align-items:flex-end;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+.lhead h2{font-size:22px;font-weight:700}
+.lhead p{font-size:12.5px;color:var(--ink-2);margin-top:2px}
+.sortbar{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-3)}
+.sortbar select{font:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--line);border-radius:4px;background:var(--surface);color:var(--ink)}
+.daterule{display:flex;align-items:center;gap:10px;margin:16px 0 7px;font-family:'JetBrains Mono';font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.daterule::after{content:'';flex:1;height:1px;background:var(--line)}
+.daterule b{color:var(--ink-2)}
+
+.trow{display:grid;grid-template-columns:4px 1fr 172px;background:var(--surface);border:1px solid var(--line);border-radius:4px;margin-bottom:6px;overflow:hidden;transition:border-color .14s;cursor:pointer}
+.trow:hover{border-color:var(--accent)}
+.stripe{background:var(--accent)}
+.tmain{padding:13px 16px;min-width:0}
+.tmeta{display:flex;align-items:center;gap:9px;margin-bottom:5px;flex-wrap:wrap;line-height:1}
+.srcTag{font-family:'JetBrains Mono';font-size:9.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+.ref{font-family:'JetBrains Mono';font-size:10.5px;color:var(--ink-3)}
+.dom{font-size:10px;font-weight:600;padding:2px 7px;border-radius:100px;background:var(--surface-3);color:var(--accent)}
+.rel{font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:2px}
+.rel.High{background:rgba(15,158,140,.16);color:var(--mint)}
+.rel.Medium{background:rgba(190,124,12,.18);color:var(--amber)}
+.isnew{font-size:9px;font-weight:700;letter-spacing:.06em;background:var(--mint);color:#04231F;padding:2px 5px;border-radius:2px}
+.ttitle{font-family:'Inter Tight';font-weight:600;font-size:14.5px;line-height:1.4;margin-bottom:4px;letter-spacing:-.012em}
+.torg{font-size:12.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tside{padding:12px 14px;border-left:1px solid var(--line-2);background:var(--surface-2);display:flex;flex-direction:column;justify-content:center;gap:6px}
+.val{font-family:'JetBrains Mono';font-weight:600;font-size:12.5px}
+.val small{font-weight:400;color:var(--ink-3);font-size:9.5px;display:block;letter-spacing:.08em;text-transform:uppercase}
+.gauge .lbl{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-3);margin-bottom:3px}
+.gauge .lbl b{font-family:'JetBrains Mono';font-weight:600}
+.bar{height:3px;background:var(--line);border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%}
+.u-hot i{background:var(--red)}.u-hot b{color:var(--red)}
+.u-warm i{background:var(--amber)}.u-warm b{color:var(--amber)}
+.u-cool i{background:var(--mint)}.u-cool b{color:var(--accent)}
+
+.dgrid{display:grid;grid-template-columns:1fr 290px;gap:18px;align-items:start}
+.dhead{padding:18px 20px;border-bottom:1px solid var(--line-2)}
+.dhead h2{font-size:21px;line-height:1.28;margin:8px 0}
+.facts{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line-2)}
+.fact{padding:13px 15px;border-right:1px solid var(--line-2)}
+.fact:last-child{border:none}
+.fact .k{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:3px}
+.fact .v{font-family:'JetBrains Mono';font-weight:600;font-size:14px}
+.sect{padding:16px 20px;border-top:1px solid var(--line-2)}
+.sect h4{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:9px;font-weight:700}
+.sect p{font-size:13.5px;color:var(--ink-2);line-height:1.6}
+.evid{font-family:'JetBrains Mono';font-size:11.5px;color:var(--ink-2);background:var(--surface-2);padding:9px 11px;border-radius:4px;border:1px solid var(--line-2);line-height:1.6}
+.chg{display:flex;gap:10px;font-size:12.5px;padding:7px 0;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
+.chg:last-child{border:none}
+.chg .f{font-weight:600;width:70px;flex:none}
+.chg .o{color:var(--ink-3);text-decoration:line-through}
+.sidecard{margin-bottom:12px}
+.sidecard h4{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);padding:12px 14px;border-bottom:1px solid var(--line-2);font-weight:700}
+.kv{display:flex;padding:8px 14px;font-size:12.5px;border-bottom:1px solid var(--line-2);gap:8px}
+.kv:last-child{border:none}
+.kv span{color:var(--ink-3);width:80px;flex:none;font-size:11.5px}
+.kv b{font-weight:500;word-break:break-word}
+.btn{display:block;padding:10px;background:var(--accent);color:#fff;border-radius:4px;font-family:'Inter Tight';font-weight:600;font-size:13px;text-align:center}
+
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:11px}
+.inst{background:var(--surface);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.insthead{padding:13px 15px;border-bottom:1px solid var(--line-2);display:flex;gap:10px}
+.crest{width:32px;height:32px;border-radius:4px;flex:none;display:grid;place-items:center;font-family:'Inter Tight';font-weight:700;font-size:11px;color:#fff;background:var(--accent)}
+.insthead h3{font-size:13.5px;font-weight:600;line-height:1.3}
+.insthead .sub{font-size:11px;color:var(--ink-3);margin-top:2px}
+.cbody{padding:10px 15px;font-size:12.5px;color:var(--ink-2)}
+.cbody .row{display:flex;gap:8px;padding:3px 0}
+.cbody .row span{color:var(--ink-3);width:62px;flex:none;font-size:11.5px}
+.instfoot{padding:9px 15px;background:var(--surface-2);border-top:1px solid var(--line-2);display:flex;gap:14px;font-size:11px;color:var(--ink-2);flex-wrap:wrap}
+.instfoot b{font-family:'JetBrains Mono';font-weight:600}
+
+.ogrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:11px;margin-bottom:16px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:14px 16px}
+.kpi .k{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:5px}
+.kpi .v{font-family:'Inter Tight';font-weight:700;font-size:27px;letter-spacing:-.04em;line-height:1}
+.ocard h4{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);padding:13px 15px;border-bottom:1px solid var(--line-2);font-weight:700}
+.brow{display:flex;align-items:center;gap:10px;padding:6px 15px;font-size:12.5px}
+.brow .lb{flex:none;width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2)}
+.brow .g{flex:1;height:7px;background:var(--surface-3);border-radius:2px;overflow:hidden}
+.brow .g i{display:block;height:100%;background:var(--accent);border-radius:2px}
+.brow .nn{font-family:'JetBrains Mono';font-size:11.5px;width:38px;text-align:right;color:var(--ink-2)}
+.cal{display:grid;grid-template-columns:repeat(15,1fr);gap:3px;padding:14px 15px}
+.cday{aspect-ratio:1;border-radius:2px;background:var(--surface-3);position:relative}
+.cday span{position:absolute;inset:0;display:grid;place-items:center;font-family:'JetBrains Mono';font-size:8.5px;color:#fff;font-weight:600}
+
+.bhead{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:4px;padding:15px 18px;margin-bottom:14px;font-family:'Inter Tight';font-weight:600;font-size:16px;line-height:1.45;letter-spacing:-.015em}
+.bhead span{display:block;font-family:'Inter';font-weight:400;font-size:11.5px;color:var(--ink-3);margin-top:6px;letter-spacing:0}
+.vlbl{display:block;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:5px;font-weight:700}
+.vopts{display:flex;flex-direction:column;gap:2px}
+.vopts label{display:flex;gap:7px;align-items:center;font-size:12.5px;color:var(--ink-2);cursor:pointer}
+.vopts input{accent-color:var(--accent)}
+.arow{display:grid;grid-template-columns:1fr 120px 52px 110px 100px 130px 96px;gap:10px;align-items:center;padding:7px 16px;font-size:12.5px;border-bottom:1px solid var(--line-2)}
+.arow:last-child{border-bottom:none}
+.arow.ahead{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding-bottom:9px}
+.arow.us{background:rgba(15,158,140,.07)}
+.arow .an{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.arow .ab{height:7px;background:var(--surface-3);border-radius:2px;overflow:hidden}
+.arow.ahead .ab{background:none;height:auto;font-size:9.5px}
+.arow .ab i{display:block;height:100%;border-radius:2px}
+.arow .ap,.arow .av,.arow .ag,.arow .ax,.arow .ar{font-family:'JetBrains Mono';font-size:11.5px;color:var(--ink-2);text-align:right}
+.arow.ahead .ap,.arow.ahead .av,.arow.ahead .ag,.arow.ahead .ax,.arow.ahead .ar{font-family:'Inter'}
+@media(max-width:900px){.arow{grid-template-columns:1fr 60px 90px;gap:8px}.arow .ab,.arow .ag,.arow .ax,.arow .ar{display:none}}
+.bsec{margin-bottom:22px}
+.bsec h3{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);font-weight:700;margin-bottom:9px;display:flex;align-items:center;gap:9px}
+.bsec h3 .cnt{font-family:'JetBrains Mono';font-size:10.5px;background:var(--surface-3);color:var(--ink-2);padding:1px 6px;border-radius:2px;letter-spacing:0}
+.brow2{display:grid;grid-template-columns:4px 1fr auto;gap:0;background:var(--surface);border:1px solid var(--line);border-radius:4px;margin-bottom:5px;cursor:pointer;overflow:hidden}
+.brow2:hover{border-color:var(--accent)}
+.brow2 .bd{padding:10px 13px;min-width:0}
+.brow2 .t{font-family:'Inter Tight';font-weight:600;font-size:13.5px;line-height:1.35;margin-bottom:2px}
+.brow2 .m{font-size:11.5px;color:var(--ink-3);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.brow2 .r{padding:10px 13px;border-left:1px solid var(--line-2);background:var(--surface-2);display:flex;flex-direction:column;justify-content:center;align-items:flex-end;gap:2px;white-space:nowrap}
+.brow2 .r b{font-family:'JetBrains Mono';font-size:12px}
+.bnil{padding:16px;border:1px dashed var(--line);border-radius:4px;color:var(--ink-3);font-size:13px;background:var(--surface)}
+.bhero{display:flex;gap:26px;padding:15px 18px;background:var(--surface);border:1px solid var(--line);border-radius:4px;margin-bottom:20px;flex-wrap:wrap}
+.bhero div span{display:block;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:3px}
+.bhero div b{font-family:'Inter Tight';font-weight:700;font-size:22px;letter-spacing:-.03em}
+.empty{padding:44px;text-align:center;color:var(--ink-3);font-size:13.5px;line-height:1.7}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.more{width:100%;padding:11px;border:1px dashed var(--line);border-radius:4px;color:var(--ink-2);font-size:13px;margin-top:8px;background:var(--surface)}
+.more:hover{border-color:var(--accent);color:var(--accent)}
+
+@media(max-width:1080px){.cols,.dgrid{grid-template-columns:1fr}.rail{position:static;max-height:none}.facts{grid-template-columns:repeat(2,1fr)}.cal{grid-template-columns:repeat(10,1fr)}}
+@media(max-width:720px){.trow{grid-template-columns:3px 1fr}.tside{display:none}.hstrip{display:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gatebox">
+    <h1>Tender Desk</h1>
+    <p>Digital procurement intelligence</p>
+    <input id="pass" type="password" placeholder="Passphrase" autocomplete="one-time-code" name="td-gate" spellcheck="false">
+    <button onclick="doLogin()">Enter</button>
+    <div class="gerr" id="gerr"></div>
+  </div>
+</div>
+
+<header class="appbar"><div class="wrap">
+  <div class="brand"><b>Tender Desk</b><span>Procurement Intelligence</span></div>
+  <span class="spacer"></span>
+  <span class="hpill" id="lastScan" title="Most recent completed scan"><i style="background:var(--ink-3)"></i>Last scan <b>—</b></span>
+  <span class="tools">
+    <button class="iconbtn" onclick="toggleTheme()" id="themeBtn">Dark</button>
+    <button class="iconbtn" onclick="doExport()">Export</button>
+    <button class="iconbtn" id="scanBtn" onclick="runScan()">Scan now</button>
+  </span>
+</div></header>
+
+<nav class="tabbar"><div class="wrap" role="tablist" id="tabs"></div></nav>
+
+<main class="panel on" id="p-brief"><div class="wrap" style="max-width:1000px">
+  <div class="lhead"><div><h2 id="briefTitle">Daily brief</h2><p id="briefSub">Loading…</p></div>
+    <div class="sortbar"><select id="viewPick" onchange="switchView()"></select>
+      <button class="iconbtn" onclick="toggleViewEditor()">Customise</button></div></div>
+  <div class="card" id="viewEditor" style="display:none;padding:16px;margin-bottom:16px">
+    <h4 style="font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);margin-bottom:11px">Custom view</h4>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px">
+      <div><label class="vlbl">Name</label><input class="srch" id="vName" placeholder="e.g. Connectivity, Punjab"></div>
+      <div><label class="vlbl">Lanes</label><div id="vLanes" class="vopts"></div></div>
+      <div><label class="vlbl">Product lines</label><div id="vLines" class="vopts" style="max-height:104px;overflow:auto"></div></div>
+      <div><label class="vlbl">Jurisdictions</label><div id="vJur" class="vopts" style="max-height:104px;overflow:auto"></div></div>
+      <div><label class="vlbl">Closing horizon (days)</label><input class="srch" id="vDays" type="number" value="7" min="1" max="90"></div>
+      <div><label class="vlbl">Minimum fit score</label><input class="srch" id="vFit" type="number" value="0" min="0" max="100"></div>
+    </div>
+    <div style="margin-top:13px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" style="max-width:170px" onclick="saveView()">Save view</button>
+      <button class="iconbtn" onclick="deleteView()">Delete this view</button>
+      <button class="iconbtn" onclick="toggleViewEditor()">Close</button>
+    </div>
+    <p style="font-size:11.5px;color:var(--ink-3);margin-top:10px">Views are stored in this browser and persist between visits. The default view is everything biddable.</p>
+  </div>
+  <div id="briefBody"></div>
+</div></main>
+
+<main class="panel" id="p-feed"><div class="wrap"><div class="cols">
+  <aside class="card rail" id="filters"></aside>
+  <section>
+    <div class="lhead">
+      <div><h2 id="feedTitle">Tenders</h2><p id="feedSub">Loading…</p></div>
+      <div class="sortbar">
+        <label for="sort">Sort</label>
+        <select id="sort" onchange="refresh()">
+          <option value="newest" selected>Newest first</option>
+          <option value="closing">Closing soonest</option>
+          <option value="value">Contract value</option>
+          <option value="relevance">Relevance</option>
+        </select>
+      </div>
+    </div>
+    <div id="feedList"></div>
+    <button class="more" id="moreBtn" style="display:none" onclick="loadMore()">Load more</button>
+  </section>
+</div></div></main>
+
+<main class="panel" id="p-papers"><div class="wrap" style="max-width:960px">
+  <div class="lhead"><div><h2>Newspaper feed</h2><p id="npSub">Tenders pulled from newspaper e-papers. Filter like the main feed.</p></div>
+    <div class="sortbar">
+      <button class="iconbtn" onclick="npProbe()">Probe papers</button>
+      <button class="btn" style="max-width:130px" onclick="npFetch()">Fetch now</button>
+    </div>
+  </div>
+  <div class="card" style="padding:12px 14px;margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <input class="srch" id="npQ" placeholder="Search newspaper tenders…" style="flex:1;min-width:200px" oninput="npDebounce()">
+    <select class="srch" id="npScope" style="width:180px" onchange="loadNpFeed()">
+      <option value="all">All newspaper rows</option>
+      <option value="relevant">Relevant + signals</option>
+      <option value="opportunity">Jazz opportunities</option>
+    </select>
+    <select class="srch" id="npStatusSel" style="width:140px" onchange="loadNpFeed()">
+      <option value="">Any status</option>
+      <option value="open" selected>Open</option>
+      <option value="closed">Closed</option>
+    </select>
+    <select class="srch" id="npLane" style="width:150px" onchange="loadNpFeed()">
+      <option value="">Any lane</option>
+      <option value="Core">Core</option><option value="Partner-led">Partner-led</option>
+      <option value="Signal">Signal</option><option value="None">Unclassified</option>
+    </select>
+    <span id="npMsg" style="font-size:12px;color:var(--ink-3)"></span>
+  </div>
+  <div id="npFeedList"></div>
+  <button class="btn" id="npMoreBtn" style="display:none;margin:12px auto" onclick="loadNpFeed(true)">Load more</button>
+</div></main>
+
+<main class="panel" id="p-intel"><div class="wrap">
+  <div class="lhead"><div><h2>Intelligence</h2><p>Contract awards turned into a forward view: when accounts come back to market, who holds them, and what they clear at.</p></div>
+    <div class="sortbar"><label>Horizon</label>
+      <select id="intelHz" onchange="loadIntel()">
+        <option value="365">12 months</option><option value="540" selected>18 months</option>
+        <option value="730">24 months</option><option value="1095">36 months</option>
+      </select>
+      <a class="btn" style="max-width:210px;margin-left:12px;padding:8px 12px" href="/api/export-history?days=365" download>Download history (Excel)</a>
+      <label class="btn" style="max-width:180px;margin-left:8px;padding:8px 12px;cursor:pointer">Import list
+        <input type="file" id="impFile" accept=".xlsx,.xlsm,.csv" style="display:none" onchange="startImport(this)">
+      </label>
+      <span id="impMsg" style="margin-left:10px;font-size:12px;color:var(--ink-3)"></span>
+      </div></div>
+  <div id="intelBody"></div>
+</div></main>
+
+<main class="panel" id="p-overview"><div class="wrap">
+  <div class="lhead"><div><h2>Overview</h2><p>Where digital procurement is happening, and when it closes.</p></div></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="ogrid" id="ocards"></div>
+</div></main>
+
+<main class="panel" id="p-contacts"><div class="wrap">
+  <div class="lhead"><div><h2>Institution contacts</h2><p>Buyers issuing digital tenders, ranked by volume.</p></div></div>
+  <div class="cgrid" id="contactGrid"></div>
+</div></main>
+
+
+<main class="panel" id="p-reconcile"><div class="wrap" style="max-width:960px">
+  <div class="lhead"><div><h2>Reconcile a list</h2><p>Upload your internal tender list and check it against everything the portals published.</p></div></div>
+  <div class="card" style="padding:16px;margin-bottom:14px">
+    <input type="file" id="recFile" accept=".csv,.xlsx,.xlsm" style="font-size:12.5px">
+    <button class="iconbtn" onclick="doReconcile()">Check against database</button>
+    <p style="font-size:11.5px;color:var(--ink-3);margin-top:10px;line-height:1.6">
+      Columns read: <span class="mono">region, department, description, submission_date</span>. Extra columns ignored, casing does not matter. Matching is fuzzy on wording plus closing date, so treat <b>possible</b> as needing a human look.</p>
+  </div>
+  <div id="recOut"></div>
+</div></main>
+
+<main class="panel" id="p-ask"><div class="wrap" style="max-width:860px">
+  <div class="lhead"><div><h2>Ask the data</h2><p>Questions are answered by Claude, grounded in the live tender database. Your API key stays in this browser only.</p></div></div>
+  <div class="card" style="padding:16px">
+    <div style="display:flex;gap:8px;margin-bottom:9px;align-items:center"><input class="srch" id="akey" type="text" autocomplete="off" name="tdkey" placeholder="Anthropic API key" style="flex:1"><span id="keyState" style="font-size:11.5px;color:var(--ink-3);white-space:nowrap"></span><button class="iconbtn" onclick="clearKey()">Forget</button></div>
+    <div style="display:flex;gap:8px">
+      <input class="srch" id="aq" placeholder="e.g. Which Core tenders close this week?" style="flex:1" onkeydown="if(event.key==='Enter')doAsk()">
+      <button class="btn" style="width:110px" onclick="doAsk()">Ask</button>
+    </div>
+    <div id="aout" style="margin-top:14px;font-size:14px;line-height:1.65;color:var(--ink-2);white-space:pre-wrap"></div>
+  </div>
+</div></main>
+
+<main class="panel" id="p-filler"><div class="wrap" style="max-width:860px">
+  <div class="lhead"><div><h2>Bid filler</h2><p>Upload a .docx application template once, then generate a pre-filled copy for any tender.</p></div></div>
+  <div class="card" style="padding:16px;margin-bottom:14px">
+    <h4 style="font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);margin-bottom:9px">Templates</h4>
+    <div id="tplList" style="margin-bottom:11px;font-size:13px"></div>
+    <input type="file" id="tplFile" accept=".docx" style="font-size:12.5px">
+    <button class="iconbtn" onclick="uploadTpl()">Upload template</button>
+    <p style="font-size:11.5px;color:var(--ink-3);margin-top:10px;line-height:1.6">
+      In your Word document, type placeholders exactly, in one go, without changing formatting mid-word:
+      <span class="mono">{{title}} {{ref}} {{buyer}} {{closing}} {{advertised}} {{value}} {{source}} {{contact_name}} {{contact_email}} {{contact_phone}} {{url}} {{today}} {{product_line}} {{lane}} {{description}}</span>
+    </p>
+  </div>
+  <div class="card" style="padding:16px">
+    <h4 style="font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);margin-bottom:9px">Generate</h4>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input class="srch" id="fillRef" placeholder="Tender reference, e.g. TS792140E" style="flex:1;min-width:200px">
+      <select id="fillTpl" class="srch" style="width:220px"></select>
+      <button class="btn" style="width:140px" onclick="doFill()">Fill &amp; download</button>
+    </div>
+    <div id="fillMsg" style="margin-top:9px;font-size:12.5px;color:var(--ink-3)"></div>
+  </div>
+</div></main>
+
+<main class="panel" id="p-method"><div class="wrap" style="max-width:820px">
+  <div class="lhead"><div><h2>Methodology</h2><p>How Tender Desk decides what you see.</p></div></div>
+  <div class="card" style="padding:22px;font-size:14px;line-height:1.75;color:var(--ink-2)">
+    <h3 style="font-size:15px;margin-bottom:8px;color:var(--ink)">1. Collection</h3>
+    <p>Adapters scan public procurement portals four times daily (09:00, 12:00, 15:00, 18:00 PKT): PPRA EPMS and EPADS at federal level, provincial PPRAs, and multilateral sources (World Bank, ADB, UNGM). Each source is isolated: if one portal changes or fails, the header pill turns red rather than the feed silently going stale. The header shows the last completed scan.</p>
+    <h3 style="font-size:15px;margin:16px 0 8px;color:var(--ink)">2. Deduplication and change tracking</h3>
+    <p>The same tender often appears on multiple portals under different reference numbers. Records are matched on a normalised title, buyer and closing-date fingerprint; duplicates are folded into one row with the alternates listed. Corrigenda matter: changes to closing dates or status are logged and shown on the tender's detail view.</p>
+    <h3 style="font-size:15px;margin:16px 0 8px;color:var(--ink)">3. Classification: can Jazz deliver this?</h3>
+    <p>The question asked is not "is this digital?" but "can Jazz deliver this?". Every tender is read from its title and description text (portal categories are ignored as unreliable) and sorted into a lane. <b>Core</b>: Jazz can bid largely alone; connectivity, enterprise mobility, IoT and M2M, messaging and contact centre, digital financial services, cloud and hosting. <b>Partner-led</b>: a consortium is needed; managed security, smart city, systems integration, data and AI. <b>Signal</b>: not biddable, but evidence that an institution has digitisation budget; laptops, licences, IT services. Everything else, civil works, power grid equipment, vehicles, is excluded. Each tender stores the exact keywords that produced its tag, shown on its detail page, so every decision is auditable.</p>
+    <h3 style="font-size:15px;margin:16px 0 8px;color:var(--ink)">3b. The Other category</h3>
+    <p>PPRA covers public-sector procurement only. Universities, private banks and large corporates buy the same connectivity, cloud and security capability but publish on their own websites. The <b>Other</b> source scans a curated roster of those buyers: Islamabad and Rawalpindi universities (NUST, QAU, COMSATS, IIUI, Air, Bahria, NUML, PIEAS, Arid, AIOU), private banks (HBL, UBL, Bank Alfalah, Meezan, Faysal, Askari, Bank of Punjab) and corporates including PTCL, K-Electric and PSX. This is a fixed roster rather than an open web crawl: search engines block automated querying within a few requests and return mostly noise, whereas a known roster is precise, repeatable and legally clean. Filter to it by selecting Other under Source.</p>
+    <h3 style="font-size:15px;margin:16px 0 8px;color:var(--ink)">3c. Reconciliation and the miss report</h3>
+    <p>The Reconcile tab runs the check in both directions. Forward: each row of an uploaded list is matched against everything collected, returning found, possible or missing with a confidence score. Inverse: every biddable tender the portals published inside the same date window that does <b>not</b> appear on the uploaded list is surfaced under <b>Missed by us</b>, ranked by fit score and downloadable as CSV. Matching rests on shared information rather than similarity. Two tenders sharing the phrase procurement of IT equipment are highly similar and share almost no information, because those words appear in hundreds of notices; two sharing digital supply chain financing share a great deal. A match therefore requires distinctive shared vocabulary, measured against the corpus itself, and the portal title must carry enough content to be evidence at all. Your description is compared against both our title and our stored description. Buyer identity corroborates. The closing date is a tiebreaker only, since agencies cluster bid openings on common days and internal lists record internal deadlines. Comparison is stemmed and spelling tolerant, so digitisation, digitization and digitalization are one term. The forward pass audits the list. The inverse pass audits coverage, and is where opportunities nobody noticed internally appear.</p>
+    <h3 style="font-size:15px;margin:16px 0 8px;color:var(--ink)">3d. The brief</h3>
+    <p>The landing tab answers a different question from the feed. The feed asks what exists; the brief asks what changed and what needs a decision now. It carries three fixed sections: biddable tenders first seen in the last two days, biddable tenders closing within seven, and corrigenda that moved a date or status on a tracked tender. Core and Partner-led lanes only, capped at ten rows per section. An empty section is a valid answer and states so explicitly, so silence is never ambiguous.</p>
+    <h3 style="font-size:15px;margin:16px 0 8px;color:var(--ink)">3e. Intelligence from awards</h3>
+    <p>A tender notice describes what is happening now. A contract award describes who holds an account, at what price, against how many bidders, and for how long. PPRA publishes awards, so the contract term stated in the wording, typically "for a period of three (03) years", yields a re-tender date years ahead of the notice. The Intelligence tab turns that into a renewal pipeline, an incumbency map, price bands per product line, and a list of single-bid awards where an incumbent went unchallenged. This is the layer a tender subscription cannot supply, because it is analysis of procurement behaviour rather than distribution of notices.</p>
+    <h3 style="font-size:15px;margin:16px 0 8px;color:var(--ink)">3f. Newspaper ingestion</h3>
+    <p>Commercial aggregators differentiate on newspaper coverage rather than portals, and their operation is largely manual: staff read the papers and key the advertisements in. The Newspapers tab automates the English-language half of that. A PDF carrying a text layer is read directly. A scanned page is rasterised and passed through OCR, then segmented into advertisements, filtered to those carrying a procurement heading, and parsed for buyer, subject, reference, closing date and contact. Urdu is deliberately excluded: recognition quality is poor enough that a wrong closing date would enter the database, which is worse than a missing tender. Every saved row is flagged for review.</p>
+    <h3 style="font-size:15px;margin:16px 0 8px;color:var(--ink)">4. Scoring</h3>
+    <p>The fit score (0-100) reflects lane, keyword density, and whether the buyer is a named key account (NTC, USF, NADRA, PITB, FBR and others). It orders the queue; it does not replace judgement.</p>
+    <h3 style="font-size:15px;margin:16px 0 8px;color:var(--ink)">4b. Nothing is discarded</h3>
+    <p>Every row a portal returns is stored. Cross-source duplicates are tagged rather than dropped, so the <b>Everything</b> scope shows the complete raw harvest including duplicates and rows classified as irrelevant. The curated scopes (Bids, +Signal) hide duplicates for readability. If a tender is missing from Everything, it was absent from the portal at scan time rather than filtered out here.</p>
+    <h3 style="font-size:15px;margin:16px 0 8px;color:var(--ink)">5. Known limits</h3>
+    <p>Portals serve a rolling window, not a full archive, so a tender floated and closed before scanning began cannot be recovered. History begins when scanning began; portals only serve a rolling window, so depth compounds daily. Classification is keyword-based and tuned over time, false positives are expected and correctable. Values are as published; many portals do not disclose them.</p>
+  </div>
+</div></main>
+
+<script>
+let F={sources:[],domains:[],relevance:[],jurisdictions:[],lanes:[],status:'open',q:'',within:null,new_only:0,scope:'opportunity',date_on:''};
+let FACETS=null, OPEN=[], ACTIVE='brief', OFFSET=0, TOTAL=0;
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* tender ids contain ':' which breaks querySelector — map to safe DOM ids */
+const safeId=u=>'d'+String(u).replace(/[^A-Za-z0-9]/g,'_');
+const SRCCOLOR={EPMS:'#0B4F5F',EPADS:'#0E6478','PPRA-Punjab':'#2B5CA8','SPPRA-Sindh':'#6F4682','KPPRA-KP':'#43713A','BPPRA-Balochistan':'#B25F26',WorldBank:'#2B5CA8',ADB:'#B25F26',UNGM:'#1B7FC4'};
+const sc=s=>SRCCOLOR[s]||'#5A6878';
+function fmtPKR(v){if(!v)return null;if(v>=1e9)return 'PKR '+(v/1e9).toFixed(2)+'B';if(v>=1e6)return 'PKR '+(v/1e6).toFixed(1)+'M';return 'PKR '+Math.round(v).toLocaleString()}
+const money=r=>fmtPKR(r.value_num)||(r.value_text?esc(String(r.value_text).slice(0,16)):'Not disclosed');
+const urg=d=>d==null?'u-cool':d<=5?'u-hot':d<=14?'u-warm':'u-cool';
+
+async function api(p,o){const r=await fetch(p,o);if(r.status===401){$('#gate').style.display='grid';throw new Error('auth')}if(!r.ok)throw new Error(await r.text());return r.json()}
+
+function toggleTheme(){
+  const nx=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';
+  document.documentElement.setAttribute('data-theme',nx);
+  $('#themeBtn').textContent=nx==='light'?'Dark':'Light';
+  try{localStorage.setItem('td_theme',nx)}catch(e){}
+}
+try{const t=localStorage.getItem('td_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}
+
+async function doLogin(){
+  try{
+    await api('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({passphrase:$('#pass').value})});
+    $('#gate').style.display='none'; const g=$('#gate'); if(g)g.remove(); boot();
+  }catch(e){$('#gerr').textContent='Incorrect passphrase'}
+}
+$('#pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+
+const TAB_DEF=['brief','feed','intel','papers','overview','contacts','reconcile','ask','filler','method'];
+function tabOrder(){
+  let o=[]; try{o=JSON.parse(localStorage.getItem('td_taborder')||'[]')}catch(e){}
+  o=o.filter(x=>TAB_DEF.includes(x));
+  return o.concat(TAB_DEF.filter(x=>!o.includes(x)));
+}
+function saveTabOrder(o){try{localStorage.setItem('td_taborder',JSON.stringify(o))}catch(e){}}
+const TAB_LABEL={brief:'Brief',feed:'Feed',intel:'Analytics',papers:'Newspapers',overview:'Overview',contacts:'Contacts',
+  reconcile:'Reconcile',ask:'Ask',filler:'Bid filler',method:'Methodology'};
+function dragTabs(){
+  let src=null;
+  document.querySelectorAll('#tabs .tab[data-k]').forEach(el=>{
+    el.draggable=true;
+    el.addEventListener('dragstart',e=>{src=el.dataset.k;el.style.opacity='.4'});
+    el.addEventListener('dragend',e=>{el.style.opacity=''});
+    el.addEventListener('dragover',e=>{e.preventDefault();el.style.borderLeft='2px solid var(--accent)'});
+    el.addEventListener('dragleave',e=>{el.style.borderLeft=''});
+    el.addEventListener('drop',e=>{
+      e.preventDefault(); el.style.borderLeft='';
+      const tgt=el.dataset.k; if(!src||src===tgt)return;
+      const o=tabOrder().filter(x=>x!==src);
+      o.splice(o.indexOf(tgt),0,src); saveTabOrder(o); renderTabs();
+    });
+  });
+}
+function renderTabs(){
+  let h='';
+  tabOrder().forEach(k=>{
+    const extra = k==='feed' ? ' <span class="n" id="feedN">–</span>' : '';
+    h+=`<button class="tab t-${k}" data-k="${k}" aria-selected="${ACTIVE===k}" onclick="go('${k}')" title="Drag to reorder">${TAB_LABEL[k]}${extra}</button>`;
+  });
+  OPEN.forEach(t=>{
+    const id=safeId(t.uid);
+    h+=`<button class="tab t-detail" aria-selected="${ACTIVE===id}" onclick="go('${id}')">${esc((t.title||'').slice(0,22))}${(t.title||'').length>22?'…':''}<span class="x" onclick="event.stopPropagation();closeTab('${id}')">×</span></button>`;
+  });
+  $('#tabs').innerHTML=h;
+  dragTabs();
+}
+function go(p){
+  ACTIVE=p; renderTabs();
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+  const el=document.getElementById('p-'+p);
+  if(el)el.classList.add('on');
+  window.scrollTo(0,0);
+  if(p==='brief')loadBrief();
+  if(p==='contacts')loadContacts();
+  if(p==='overview')loadOverview();
+  if(p==='intel'){window.location.href='/analytics';return;}
+  if(p==='news')loadNpFeed();
+  if(p==='filler')loadFiller();
+  if(p==='ask')keyState();
+}
+function closeTab(id){
+  OPEN=OPEN.filter(x=>safeId(x.uid)!==id);
+  const el=document.getElementById('p-'+id); if(el)el.remove();
+  if(ACTIVE===id)go('feed'); else renderTabs();
+}
+
+function renderFilters(){
+  const f=FACETS;
+  const box=(t,items,key)=>{
+    if(!items||!items.length)return '';
+    const act=F[key].length;
+    return `<div class="fgroup"><h4><span>${t}</span>${act?`<button onclick="F['${key}']=[];refresh()">clear</button>`:''}</h4>`+
+      items.filter(i=>i.k).map(i=>`<label class="chk"><input type="checkbox" value="${esc(i.k)}" data-k="${key}" ${F[key].includes(i.k)?'checked':''} onchange="tog(this)"><span class="t">${esc(i.k)}</span><span class="c">${i.n}</span></label>`).join('')+`</div>`;
+  };
+  $('#filters').innerHTML=
+    `<div class="fgroup"><h4><span>Search</span></h4><input class="srch" id="q" type="search" autocomplete="off" name="tdsearch" spellcheck="false" placeholder="fibre, cloud, NADRA…" value="${esc(F.q)}" onkeydown="if(event.key==='Enter'){F.q=this.value;refresh()}"></div>`+
+    `<div class="fgroup"><h4><span>Scope</span></h4><div class="seg">
+       <button aria-pressed="${F.scope==='opportunity'}" onclick="F.scope='opportunity';refresh()">Bids</button>
+       <button aria-pressed="${F.scope==='relevant'}" onclick="F.scope='relevant';refresh()">+Signal</button>
+       <button aria-pressed="${F.scope==='all'}" onclick="F.scope='all';refresh()">Everything</button></div></div>`+
+    `<div class="fgroup"><h4><span>Date</span>${F.date_on?`<button onclick="F.date_on='';refresh()">clear</button>`:''}</h4>
+       <input class="srch" type="date" value="${esc(F.date_on||'')}" onchange="F.date_on=this.value;refresh()">
+       <p style="font-size:10.5px;color:var(--ink-3);margin-top:5px">Advertised or closing on this date.</p></div>`+
+    box('Lane',f.lanes||[],'lanes')+
+    `<div class="fgroup"><h4><span>Status</span></h4><div class="seg">
+       <button aria-pressed="${F.status==='open'}" onclick="F.status='open';refresh()">Open</button>
+       <button aria-pressed="${F.status==='closed'}" onclick="F.status='closed';refresh()">Closed</button>
+       <button aria-pressed="${F.status===''}" onclick="F.status='';refresh()">Any</button></div></div>`+
+    `<div class="fgroup"><h4><span>Closing within</span></h4><div class="seg">
+       <button aria-pressed="${F.within===7}" onclick="F.within=F.within===7?null:7;refresh()">7d</button>
+       <button aria-pressed="${F.within===30}" onclick="F.within=F.within===30?null:30;refresh()">30d</button>
+       <button aria-pressed="${F.within===null}" onclick="F.within=null;refresh()">Any</button></div>
+       <label class="chk" style="margin-top:9px"><input type="checkbox" ${F.new_only?'checked':''} onchange="F.new_only=this.checked?1:0;refresh()"><span class="t">New since last scan</span><span class="c">${f.stats.new_digital||0}</span></label></div>`+
+    box('Source',f.sources,'sources')+
+    box('Jurisdiction',f.jurisdictions,'jurisdictions')+
+    box('Digital domain',f.domains,'domains')+
+    box('Relevance',(f.relevance||[]).filter(r=>r.k&&r.k!=='Low'),'relevance');
+}
+function tog(el){const k=el.dataset.k;F[k]=el.checked?[...F[k],el.value]:F[k].filter(x=>x!==el.value);refresh()}
+/* re-render filters so pressed states update */
+function refresh(){OFFSET=0;renderFilters();loadFeed()}
+
+function qs(){
+  const p=new URLSearchParams();
+  if(F.q)p.set('q',F.q);
+  ['sources','domains','relevance','jurisdictions','lanes'].forEach(k=>{if(F[k].length)p.set(k,F[k].join(','))});
+  p.set('status',F.status);
+  if(F.within)p.set('closing_within',F.within);
+  if(F.new_only)p.set('new_only','1');
+  p.set('scope',F.scope);
+  if(F.date_on)p.set('date_on',F.date_on);
+  p.set('sort',$('#sort').value);
+  return p;
+}
+
+function rowHTML(r){
+  const dl=r.days_left;
+  const pct=dl==null?0:Math.max(4,Math.min(100,100-(dl/60*100)));
+  return `<div class="trow" onclick="openTender('${esc(r.uid)}')">
+    <span class="stripe" style="background:${sc(r.source)}"></span>
+    <div class="tmain">
+      <div class="tmeta">
+        <span class="srcTag" style="color:${sc(r.source)}">${esc(r.source)}</span>
+        ${r.ref?`<span class="ref">${esc(r.ref)}</span>`:''}
+        ${r.lane&&r.lane!=='None'?`<span class="rel ${r.lane==='Core'?'High':'Medium'}">${esc(r.lane)}</span>`:''}
+        ${r.product_line?`<span class="dom">${esc(r.product_line)}</span>`:''}
+        ${r.is_new?'<span class="isnew">NEW</span>':''}
+      </div>
+      <div class="ttitle">${esc(r.title)}</div>
+      <div class="torg">${esc(r.buyer||'—')}</div>
+    </div>
+    <div class="tside">
+      <div class="val"><small>Value</small>${money(r)}</div>
+      <div class="gauge ${urg(dl)}"><div class="lbl">Closes <b>${dl==null?'—':dl<0?'closed':dl+'d'}</b></div><div class="bar"><i style="width:${pct}%"></i></div></div>
+    </div>
+  </div>`;
+}
+
+async function loadFeed(append){
+  const p=qs(); p.set('limit','80'); p.set('offset',append?OFFSET:0);
+  const d=await api('/api/tenders?'+p);
+  TOTAL=d.total;
+  $('#feedN').textContent=d.total;
+  $('#feedTitle').textContent=F.scope==='opportunity'?'Jazz opportunities':(F.scope==='relevant'?'Opportunities + signals':'All tenders');
+  $('#feedSub').textContent=`${d.total} matching · ${FACETS.stats.closing_week||0} close within 7 days · ${FACETS.stats.high_rel||0} high relevance`;
+  if(!d.rows.length&&!append){
+    $('#feedList').innerHTML='<div class="card empty">No tenders match these filters.<br>Try <b>Everything</b> under Scope, or set Status to <b>Any</b>.</div>';
+    $('#moreBtn').style.display='none';return;
+  }
+  const g={};
+  d.rows.forEach(r=>{const k=r.advertised||'Undated';(g[k]=g[k]||[]).push(r)});
+  let h='';
+  Object.keys(g).sort().reverse().forEach(day=>{
+    const lbl=day==='Undated'?'Undated':new Date(day+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    h+=`<div class="daterule"><b>${lbl}</b> · ${g[day].length}</div>`+g[day].map(rowHTML).join('');
+  });
+  if(append){$('#feedList').insertAdjacentHTML('beforeend',h)}else{$('#feedList').innerHTML=h}
+  OFFSET=(append?OFFSET:0)+d.rows.length;
+  $('#moreBtn').style.display=OFFSET<TOTAL?'block':'none';
+  $('#moreBtn').textContent=`Load more (${TOTAL-OFFSET} remaining)`;
+}
+function loadMore(){loadFeed(true)}
+
+async function openTender(uid){
+  const id=safeId(uid);
+  if(OPEN.find(t=>t.uid===uid)){go(id);return}
+  let t;
+  try{t=await api('/api/tender/'+encodeURIComponent(uid))}
+  catch(e){alert('Could not load that tender.');return}
+  if(OPEN.length>=4){const drop=OPEN.shift();const el=document.getElementById('p-'+safeId(drop.uid));if(el)el.remove()}
+  OPEN.push(t);
+  const p=document.createElement('main');
+  p.className='panel'; p.id='p-'+id;
+  p.innerHTML=`<div class="wrap">${detailHTML(t)}</div>`;
+  document.body.appendChild(p);
+  go(id);
+  if(!t.detail_fetched){
+    api('/api/tender-detail/'+encodeURIComponent(uid),{method:'POST'}).then(full=>{
+      const i=OPEN.findIndex(x=>x.uid===uid);
+      if(i>-1){OPEN[i]=full;const el=document.getElementById('p-'+id);
+        if(el)el.innerHTML=`<div class="wrap">${detailHTML(full)}</div>`;}
+    }).catch(()=>{});
+  }
+}
+function detailHTML(t){
+  const dl=t.closing?Math.round((new Date(t.closing)-new Date())/864e5):null;
+  return `<div class="dgrid"><div class="card">
+    <div class="dhead">
+      <div class="tmeta">
+        <span class="srcTag" style="color:${sc(t.source)}">${esc(t.source)}</span>
+        ${t.ref?`<span class="ref">${esc(t.ref)}</span>`:''}
+        ${t.digital_domain?`<span class="dom">${esc(t.digital_domain)}</span>`:''}
+        ${t.relevance&&t.relevance!=='Low'?`<span class="rel ${esc(t.relevance)}">${esc(t.relevance)}</span>`:''}
+      </div>
+      <h2>${esc(t.title)}</h2>
+      <div style="font-size:13px;color:var(--ink-2)">${esc(t.buyer||'—')}</div>
+    </div>
+    <div class="facts">
+      <div class="fact"><div class="k">Value</div><div class="v" style="font-size:${t.value_num?'14px':'11.5px'}">${money(t)}</div></div>
+      <div class="fact"><div class="k">Closes in</div><div class="v" style="color:${dl==null?'var(--ink-3)':dl<=5?'var(--red)':dl<=14?'var(--amber)':'var(--accent)'}">${dl==null?'—':dl<0?'Closed':dl+' days'}</div></div>
+      <div class="fact"><div class="k">Advertised</div><div class="v" style="font-size:12.5px">${esc(t.advertised||'—')}</div></div>
+      <div class="fact"><div class="k">Jurisdiction</div><div class="v" style="font-size:12.5px">${esc(t.jurisdiction||'—')}</div></div>
+    </div>
+    ${t.description?`<div class="sect"><h4>As published</h4><p>${esc(t.description)}</p></div>`:''}
+    ${(t.bid_security||t.tender_fee||t.est_value_low)?`<div class="sect"><h4>Commercials</h4><p>
+      ${t.bid_security?`Bid security: <b>${esc(t.bid_security)}</b>. `:''}
+      ${t.tender_fee?`Tender fee: <b>${esc(t.tender_fee)}</b>. `:''}
+      ${t.est_value_low?`Implied value band (from 2-5% security convention): <b>${fmtPKR(t.est_value_low)} – ${fmtPKR(t.est_value_high)}</b>.`:''}
+    </p></div>`:''}
+    ${t.attachments?`<div class="sect"><h4>Attachments from source</h4>${JSON.parse(t.attachments).map(x=>`<div style="padding:3px 0"><a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:13px">↓ ${esc(x.label)}</a></div>`).join('')}</div>`:''}
+    ${t.digital_evidence?`<div class="sect"><h4>Why classified ${esc(t.digital_domain)}</h4><div class="evid">${esc(t.digital_evidence)}</div></div>`:''}
+    ${t.rationale?`<div class="sect"><h4>Relevance reasoning</h4><div class="evid">${esc(t.rationale)}</div></div>`:''}
+    ${t.changes&&t.changes.length?`<div class="sect"><h4>Changes since first seen</h4>${t.changes.map(c=>`<div class="chg"><span class="f">${esc(c.field)}</span><span class="o">${esc(c.old_value)}</span><span>→</span><b>${esc(c.new_value)}</b></div>`).join('')}</div>`:''}
+    ${t.alternates&&t.alternates.length?`<div class="sect"><h4>Also published on</h4>${t.alternates.map(a=>`<div style="font-size:12.5px;padding:3px 0"><span class="srcTag" style="color:${sc(a.source)}">${esc(a.source)}</span> <span class="ref">${esc(a.ref||'')}</span></div>`).join('')}</div>`:''}
+  </div>
+  <aside>
+    <div class="card sidecard"><h4>Source record</h4>
+      <div class="kv"><span>Reference</span><b class="mono">${esc(t.ref||'—')}</b></div>
+      <div class="kv"><span>Status</span><b>${esc(t.status||'—')}</b></div>
+      <div class="kv"><span>Closing</span><b class="mono">${esc(t.closing||'—')} ${esc(t.closing_time||'')}</b></div>
+      <div class="kv"><span>Category</span><b>${esc(t.category||'—')}</b></div>
+      <div class="kv"><span>Portal tag</span><b>${esc(t.sector_label||'—')}</b></div>
+      <div class="kv"><span>First seen</span><b class="mono">${esc(String(t.first_seen||'').slice(0,16).replace('T',' '))}</b></div>
+    </div>
+    ${(t.contact_name||t.contact_email||t.contact_phone)?`<div class="card sidecard"><h4>Contact</h4>
+      ${t.contact_name?`<div class="kv"><span>Name</span><b>${esc(t.contact_name)}</b></div>`:''}
+      ${t.contact_email?`<div class="kv"><span>Email</span><b>${esc(t.contact_email)}</b></div>`:''}
+      ${t.contact_phone?`<div class="kv"><span>Phone</span><b class="mono">${esc(t.contact_phone)}</b></div>`:''}
+    </div>`:''}
+    <a class="btn" href="${esc(t.url||'#')}" target="_blank" rel="noopener">Open source notice</a>
+  </aside></div>`;
+}
+
+function getViews(){
+  let v={}; try{v=JSON.parse(localStorage.getItem('td_views')||'{}')}catch(e){}
+  return v;
+}
+function setViews(v){try{localStorage.setItem('td_views',JSON.stringify(v))}catch(e){}}
+function activeView(){
+  let n=''; try{n=localStorage.getItem('td_view_active')||''}catch(e){}
+  const v=getViews();
+  return (n && v[n]) ? Object.assign({name:n}, v[n]) : null;
+}
+function renderViewPicker(){
+  const v=getViews(), cur=(activeView()||{}).name||'';
+  const sel=document.getElementById('viewPick'); if(!sel)return;
+  sel.innerHTML='<option value="">All biddable (default)</option>'+
+    Object.keys(v).map(n=>`<option value="${esc(n)}" ${n===cur?'selected':''}>${esc(n)}</option>`).join('');
+}
+function switchView(){
+  const n=document.getElementById('viewPick').value;
+  try{localStorage.setItem('td_view_active',n)}catch(e){}
+  loadBrief();
+}
+function toggleViewEditor(){
+  const el=document.getElementById('viewEditor');
+  const open=el.style.display==='none';
+  el.style.display=open?'block':'none';
+  if(open)fillViewEditor();
+}
+function fillViewEditor(){
+  const f=FACETS||{}, cur=activeView()||{lanes:[],lines:[],jur:[],days:7,fit:0,name:''};
+  document.getElementById('vName').value=cur.name||'';
+  document.getElementById('vDays').value=cur.days||7;
+  document.getElementById('vFit').value=cur.fit||0;
+  const opt=(id,items,sel)=>{
+    document.getElementById(id).innerHTML=(items||[]).filter(i=>i.k).map(i=>
+      `<label><input type="checkbox" value="${esc(i.k)}" ${(sel||[]).includes(i.k)?'checked':''}> ${esc(i.k)} <span style="color:var(--ink-3);font-size:11px">${i.n}</span></label>`).join('');
+  };
+  opt('vLanes',(f.lanes||[]).filter(x=>x.k!=='Signal'),cur.lanes);
+  opt('vLines',f.domains,cur.lines);
+  opt('vJur',f.jurisdictions,cur.jur);
+}
+function readChecks(id){
+  return Array.from(document.querySelectorAll('#'+id+' input:checked')).map(x=>x.value);
+}
+function saveView(){
+  const n=document.getElementById('vName').value.trim();
+  if(!n){alert('Give the view a name.');return}
+  const v=getViews();
+  v[n]={lanes:readChecks('vLanes'),lines:readChecks('vLines'),jur:readChecks('vJur'),
+        days:parseInt(document.getElementById('vDays').value)||7,
+        fit:parseInt(document.getElementById('vFit').value)||0};
+  setViews(v);
+  try{localStorage.setItem('td_view_active',n)}catch(e){}
+  renderViewPicker(); toggleViewEditor(); loadBrief();
+}
+function deleteView(){
+  const cur=activeView(); if(!cur){alert('The default view cannot be deleted.');return}
+  const v=getViews(); delete v[cur.name]; setViews(v);
+  try{localStorage.setItem('td_view_active','')}catch(e){}
+  renderViewPicker(); toggleViewEditor(); loadBrief();
+}
+function applyView(rows,vw){
+  if(!vw)return rows;
+  return (rows||[]).filter(r=>
+    (!vw.lanes.length || vw.lanes.includes(r.lane)) &&
+    (!vw.lines.length || vw.lines.includes(r.product_line)) &&
+    (!vw.jur.length   || vw.jur.includes(r.jurisdiction)) &&
+    ((r.fit_score||0) >= (vw.fit||0)));
+}
+
+async function loadBrief(){
+  const vw=activeView();
+  renderViewPicker();
+  const b=await api('/api/brief'+(vw?('?closing_days='+(vw.days||7)):''));
+  if(vw){b.new=applyView(b.new,vw); b.closing=applyView(b.closing,vw);
+         b.moved=applyView(b.moved,vw); b.window.closing_days=vw.days||7;}
+  $('#briefTitle').textContent=vw?('Brief · '+vw.name):'Daily brief';
+  const s=b.stats||{}, lr=b.last_run||{};
+  let when='not yet run';
+  if(lr.finished){const dt=new Date(lr.finished.includes('+')?lr.finished:lr.finished+'Z');
+    when=dt.toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});}
+  $('#briefSub').textContent=`Last scan ${when} · ${s.open_opps||0} open opportunities tracked`;
+
+  // headline: one sentence stating what needs attention, in plain terms
+  const nNew=(b.new||[]).length, nClose=(b.closing||[]).length, nMoved=(b.moved||[]).length;
+  const urgent=(b.closing||[]).filter(x=>x.days_left<=2).length;
+  const topFit=(b.new||[]).concat(b.closing||[]).sort((x,y)=>(y.fit_score||0)-(x.fit_score||0))[0];
+  let head;
+  if(!nNew&&!nClose&&!nMoved){
+    head='Nothing needs attention today. No new biddable tenders, none closing this week, no portal changes.';
+  }else{
+    const bits=[];
+    if(nNew)bits.push(`${nNew} new biddable tender${nNew>1?'s':''}`);
+    if(nClose)bits.push(`${nClose} closing within ${b.window.closing_days} days${urgent?` (${urgent} inside 48 hours)`:''}`);
+    if(nMoved)bits.push(`${nMoved} portal change${nMoved>1?'s':''}`);
+    head=bits.join(', ').replace(/,([^,]*)$/,' and$1')+'.';
+    if(topFit)head+=` Highest fit is ${topFit.product_line||topFit.lane} at ${topFit.buyer||''}.`;
+  }
+  const lastSeen=(()=>{try{return localStorage.getItem('td_seen')}catch(e){return null}})();
+  try{localStorage.setItem('td_seen',new Date().toISOString())}catch(e){}
+  const seenNote=lastSeen?`Your last visit: ${new Date(lastSeen).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}.`:'';
+
+  const row=(r,right)=>`<div class="brow2" onclick="openTender('${esc(r.uid)}')">
+      <span class="stripe" style="background:${r.lane==='Core'?'var(--mint)':'var(--amber)'}"></span>
+      <div class="bd">
+        <div class="t">${esc(r.title)}</div>
+        <div class="m"><span class="srcTag" style="color:${sc(r.source)}">${esc(r.source)}</span>
+          <span>${esc((r.buyer||'').slice(0,58))}</span>
+          ${r.product_line?`<span class="dom">${esc(r.product_line)}</span>`:''}</div>
+      </div>
+      <div class="r">${right}</div></div>`;
+
+  const sec=(title,n,inner)=>`<div class="bsec"><h3>${title}<span class="cnt">${n}</span></h3>${inner}</div>`;
+
+  const newHtml=(b.new||[]).length
+    ? b.new.map(r=>row(r,`<b style="color:var(--accent)">fit ${r.fit_score}</b><span style="font-size:10.5px;color:var(--ink-3)">closes ${esc(r.closing||'--')}</span>`)).join('')
+    : `<div class="bnil">No new biddable tenders in the last ${b.window.new_days} days. Nothing missed.</div>`;
+
+  const clRow=r=>row(r,`<b style="color:${r.days_left<=2?'var(--red)':r.days_left<=5?'var(--amber)':'var(--ink-2)'}">${r.days_left<=0?'today':r.days_left+'d'}</b><span style="font-size:10.5px;color:var(--ink-3)">${esc(r.closing||'')}</span>`);
+  const soon=(b.closing||[]).filter(r=>r.days_left<=2), later=(b.closing||[]).filter(r=>r.days_left>2);
+  const closeHtml=(b.closing||[]).length
+    ? (soon.length?`<div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--red);margin:2px 0 6px;font-weight:700">Act now · 48 hours</div>`+soon.map(clRow).join(''):'')
+      +(later.length?`<div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:${soon.length?'12px':'2px'} 0 6px;font-weight:700">This week</div>`+later.map(clRow).join(''):'')
+    : `<div class="bnil">Nothing biddable closes in the next ${b.window.closing_days} days.</div>`;
+
+  const movedHtml=(b.moved||[]).length
+    ? b.moved.map(m=>`<div class="brow2" onclick="openTender('${esc(m.uid)}')">
+        <span class="stripe" style="background:var(--accent)"></span>
+        <div class="bd"><div class="t">${esc(m.title)}</div>
+          <div class="m"><span class="srcTag" style="color:${sc(m.source)}">${esc(m.source)}</span>
+            <span>${esc(m.field)} changed: <s style="color:var(--ink-3)">${esc(m.old_value)}</s> → <b>${esc(m.new_value)}</b></span></div>
+        </div><div class="r"><b>${esc(m.ref||'')}</b></div></div>`).join('')
+    : `<div class="bnil">No corrigenda or date changes on tracked tenders.</div>`;
+
+  $('#briefBody').innerHTML=
+    `<div class="bhead">${esc(head)}${seenNote?`<span>${esc(seenNote)}</span>`:''}</div>
+     <div class="bhero">
+       <div><span>Open opportunities</span><b>${s.open_opps||0}</b></div>
+       <div><span>Core lane</span><b>${s.open_core||0}</b></div>
+       <div><span>New (${b.window.new_days}d)</span><b style="color:var(--mint)">${(b.new||[]).length}</b></div>
+       <div><span>Closing (${b.window.closing_days}d)</span><b style="color:var(--amber)">${(b.closing||[]).length}</b></div>
+       <div><span>Total tracked</span><b style="color:var(--ink-3)">${s.tracked||0}</b></div>
+     </div>`+
+    sec('New since last brief',(b.new||[]).length,newHtml)+
+    sec('Closing within '+b.window.closing_days+' days',(b.closing||[]).length,closeHtml)+
+    sec('Changed on the portal',(b.moved||[]).length,movedHtml)+
+    `<p style="font-size:11.5px;color:var(--ink-3);margin-top:14px">Core and Partner-led lanes only. Full inventory is in the Feed tab.</p>`;
+}
+
+
+
+async function npRun(commit){
+  const f=$('#npFile').files[0];
+  if(!f){alert('Choose a page file first.');return}
+  const paper=document.getElementById('npPaper').value;
+  $('#npOut').innerHTML='<div class="card empty">Reading page…'+(f.name.toLowerCase().endsWith('.pdf')?'':' OCR can take a minute.')+'</div>';
+  const fd=new FormData(); fd.append('file',f);
+  let d;
+  try{
+    const r=await fetch('/api/newspaper?paper='+encodeURIComponent(paper)+'&commit='+commit,{method:'POST',body:fd});
+    d=await r.json();
+  }catch(e){$('#npOut').innerHTML='<div class="card empty">Request failed.</div>';return}
+  if(d.error){$('#npOut').innerHTML=`<div class="card empty">${esc(d.error)}</div>`;return}
+  const g=d.diagnostics||{};
+  $('#npOut').innerHTML=
+    `<div class="kpis">
+       <div class="kpi"><div class="k">Pages</div><div class="v">${g.pages||0}</div></div>
+       <div class="kpi"><div class="k">Blocks read</div><div class="v">${g.blocks_examined||0}</div></div>
+       <div class="kpi"><div class="k">Tenders found</div><div class="v" style="color:var(--mint)">${g.tenders_found||0}</div></div>
+       <div class="kpi"><div class="k">Mode</div><div class="v" style="font-size:15px">${esc(g.mode||'')}</div></div>
+       <div class="kpi"><div class="k">Saved</div><div class="v" style="color:${d.committed?'var(--accent)':'var(--ink-3)'}">${d.saved||0}</div></div>
+     </div>`+
+    ((d.rows||[]).length?d.rows.map(r=>`<div class="trow" style="cursor:default">
+       <span class="stripe" style="background:${r.lane==='Core'?'var(--mint)':r.lane==='Partner-led'?'var(--amber)':'var(--ink-3)'}"></span>
+       <div class="tmain">
+         <div class="tmeta">
+           <span class="srcTag" style="color:#8A6A3F">${esc(paper)}</span>
+           ${r.ref?`<span class="ref">${esc(r.ref)}</span>`:''}
+           ${r.lane&&r.lane!=='None'?`<span class="rel ${r.lane==='Core'?'High':'Medium'}">${esc(r.lane)}</span>`:''}
+           ${r.product_line?`<span class="dom">${esc(r.product_line)}</span>`:''}
+         </div>
+         <div class="ttitle">${esc(r.title)}</div>
+         <div class="torg">${esc(r.buyer||'')}${r.contact_email?' · '+esc(r.contact_email):''}</div>
+       </div>
+       <div class="tside"><div class="val"><small>Closing</small>${esc(r.closing||'not found')}</div>
+         <div class="val" style="font-size:11px;color:var(--ink-3)">${esc(r.value_text||'')}</div></div>
+     </div>`).join('')
+     :'<div class="card empty">No tender advertisements recognised on this page.</div>')+
+    (d.committed?'<p style="font-size:11.5px;color:var(--ink-3);margin-top:12px">Saved rows are flagged for review and appear in the feed under this newspaper as their source.</p>':'');
+}
+
+async function loadIntel(){
+  const hz=document.getElementById('intelHz').value;
+  let b; try{b=await api('/api/intelligence?horizon='+hz)}catch(e){return}
+  const s=b.stats||{};
+  const M=v=>!v?'—':(v>=1e9?'PKR '+(v/1e9).toFixed(2)+'B':v>=1e6?'PKR '+(v/1e6).toFixed(1)+'M':'PKR '+Math.round(v).toLocaleString());
+  const mo=k=>k?new Date(k+'-01T00:00:00').toLocaleDateString('en-GB',{month:'short',year:'2-digit'}):'—';
+
+  // ── LIVE DEMAND, from open and recent tenders rather than awards. This half
+  // works from day one, before any award depth exists.
+  const dm=b.demand||{};
+  const dmLine=(dm.by_line||[]).slice(0,10).map(d=>`<div class="brow">
+      <span class="lb">${esc(d.product_line)}</span>
+      <span style="flex:1;font-size:12px;color:var(--ink-2)">${d.open_now} open now · ${d.seen_90d} in 90d · ${M(d.value)}</span>
+      <span class="nn" style="width:52px">${d.open_now}</span></div>`).join('');
+  const dmSoon=(dm.closing_soon||[]).slice(0,12).map(t=>`<div class="brow">
+      <span class="lb" title="${esc(t.title)}" style="width:auto;flex:1">${esc((t.title||'').slice(0,68))}</span>
+      <span style="font-size:11px;color:var(--ink-3);width:150px">${esc((t.buyer||'').slice(0,26))}</span>
+      <span class="nn" style="width:92px;color:var(--amber)">${esc(t.closing||'')}</span></div>`).join('');
+  const demandHtml=(dmLine||dmSoon)?`<div class="card ocard" style="margin-bottom:14px">
+      <h4>Live demand · open and recent tenders, not awards</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:8px 0">
+        <div><div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">BY PRODUCT LINE</div>${dmLine||'<div class="bnil">No open opportunities in the last 90 days.</div>'}</div>
+        <div><div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">CLOSING WITHIN 21 DAYS</div>${dmSoon||'<div class="bnil">Nothing closing in the next 21 days.</div>'}</div>
+      </div></div>`:'';
+
+  const bfCard=`<div class="card" style="padding:16px;margin-bottom:14px;border-color:var(--accent)">
+      <b>Restore award history</b><br>
+      <span style="color:var(--ink-2);font-size:13px">Award based views below, who holds contracts and when they renew, fill from a one-time archive sweep. It runs in the background and resumes on its own if interrupted, so you can close this tab.</span><br>
+      <button class="btn" style="max-width:210px;margin-top:10px" onclick="startBackfill()">Restore award history</button>
+      <span id="bfMsg" style="margin-left:10px;font-size:12px;color:var(--ink-3)"></span></div>`;
+
+  if(!s.awards){
+    $('#intelBody').innerHTML=demandHtml+bfCard+
+      '<div class="bnil">Award based views appear once the sweep above has run. The live demand shown is from open tenders and is current.</div>';
+    return;
+  }
+
+  // ── headline: share of the market we can see, and what is in play
+  let head=`Across ${s.awards} awards worth ${M(s.total_value)} from ${s.buyers} buyers`;
+  if(s.history_from) head+=` since ${esc(s.history_from)}`;
+  head+='. ';
+  if(s.our_share>0){
+    head+=`Jazz holds ${s.our_share}% by value. `;
+    if(s.defend_value>0) head+=`${M(s.defend_value)} of that renews in this horizon and must be defended. `;
+  } else {
+    head+=`Jazz holds no awarded share in this set, so every contract here is contestable. `;
+  }
+  if(s.attack_value>0) head+=`${M(s.attack_value)} sits with competitors and returns to market in the same window.`;
+  else head+=`Renewal timing appears as contract terms are captured from award wording; most rows here are one-off purchases with no stated term.`;
+
+  // ── account map: share of wallet per buyer
+  const acct=(b.accounts||[]).map(a=>{
+    const w=Math.max(2,Math.min(100,a.our_share));
+    const col=a.status==='Held'?'var(--mint)':a.status==='Contested'?'var(--amber)':'var(--red)';
+    return `<div class="arow">
+      <div class="an" title="${esc(a.buyer)}">${esc(a.buyer)}</div>
+      <div class="ab"><i style="width:${w}%;background:${col}"></i></div>
+      <div class="ap" style="color:${col}">${a.our_share}%</div>
+      <div class="av">${M(a.total_value)}</div>
+      <div class="ag">${M(a.gap_value)}</div>
+      <div class="ax">${a.suppliers} sup · ${a.avg_bids||'?'} bids</div>
+      <div class="ar">${esc(a.next_renewal||'—')}</div>
+    </div>`;}).join('');
+
+  // ── competitor table
+  const riv=(b.rivals||[]).slice(0,12).map(r=>`<div class="arow ${r.is_us?'us':''}">
+      <div class="an">${esc(r.who)}${r.is_us?' <span class="rel High">us</span>':''}${r.aliases>1?`<span class="ref"> ${r.aliases} name variants</span>`:''}</div>
+      <div class="ab"><i style="width:${Math.max(2,Math.min(100,100*r.value/Math.max(1,(b.rivals[0]||{}).value)))}%;background:${r.is_us?'var(--mint)':'var(--ink-3)'}"></i></div>
+      <div class="ap">${r.wins}</div>
+      <div class="av">${M(r.value)}</div>
+      <div class="ag">${r.avg_bids||'?'} bids</div>
+      <div class="ax">${r.uncontested} uncontested</div>
+      <div class="ar">${esc(r.last_win||'—')}</div>
+    </div>`).join('');
+
+  // ── renewal calendar, defend versus attack by month
+  const cal=b.calendar||[];
+  const cmax=Math.max(...cal.map(c=>c.value||0),1);
+  const calHtml=cal.length?cal.map(c=>{
+    const oursPct=100*(c.ours_value||0)/Math.max(1,c.value);
+    return `<div class="brow"><span class="lb">${mo(c.month)}</span>
+      <span class="g" style="height:12px"><i style="width:${Math.max(2,100*c.value/cmax)}%;background:linear-gradient(90deg,var(--mint) ${oursPct}%,var(--accent) ${oursPct}%)"></i></span>
+      <span class="nn" style="width:96px">${M(c.value)}</span>
+      <span class="nn" style="width:38px">${c.n}</span></div>`;}).join('')
+    :'<div class="bnil">No renewals inside this horizon.</div>';
+
+  const row=(r,tone)=>`<div class="trow" style="cursor:default;${tone==='red'?'border-color:rgba(179,58,48,.4)':''}">
+      <span class="stripe" style="background:${tone==='red'?'var(--red)':r.days_out<=90?'var(--amber)':'var(--accent)'}"></span>
+      <div class="tmain"><div class="tmeta">
+        <span class="rel ${tone==='red'?'Medium':'High'}">${r.days_out}d out</span>
+        ${r.product_line?`<span class="dom">${esc(r.product_line)}</span>`:''}
+        ${r.incumbent?`<span class="ref">incumbent ${esc(r.incumbent)}</span>`:''}
+        <span class="ref">${r.bids_received?r.bids_received+' bidders last time':'bidders not published'}</span>
+        <span class="ref">${r.tenure_months||'?'}m term</span></div>
+        <div class="ttitle">${esc(r.title)}</div>
+        <div class="torg">${esc(r.buyer||'')}${r.winner?' · won by '+esc(r.winner):''}</div></div>
+      <div class="tside"><div class="val"><small>${tone==='red'?'Expires':'Back to market'}</small>${esc(r.renewal_due)}</div>
+        <div class="val" style="font-size:11px;color:var(--ink-3)">${M(r.value_num)}</div></div>
+    </div>`;
+
+  const defend=(b.defend||[]).length?b.defend.map(r=>row(r,'red')).join('')
+    :'<div class="bnil">No Jazz-held contracts in the award history yet. As awards accumulate, expiries appear here.</div>';
+  const attack=(b.attack||[]).length?b.attack.slice(0,12).map(r=>row(r,'blue')).join('')
+    :'<div class="bnil">No competitor-held contracts renewing in this horizon.</div>';
+
+  const od=(b.overdue||[]).length?b.overdue.map(o=>`<div class="brow">
+      <span class="lb" title="${esc(o.buyer)}" style="width:190px">${esc(o.buyer)}</span>
+      <span style="flex:1;font-size:12px;color:var(--ink-2)">${esc(o.product_line)} · tenders every ${o.avg_gap_days}d, ${o.since_last}d since last</span>
+      <span class="nn" style="width:96px;color:${o.confidence==='high'?'var(--red)':'var(--amber)'}">+${o.overdue_by}d late</span>
+      <span class="nn" style="width:60px">${esc(o.confidence)}</span></div>`).join('')
+    :'<div class="bnil">No buyer is overdue against its own cadence. Needs at least two awards per buyer to infer a rhythm.</div>';
+
+  const priceHtml=(b.price||[]).length?b.price.slice(0,10).map(p=>`<div class="brow">
+      <span class="lb">${esc(p.product_line)}</span>
+      <span style="flex:1;font-family:'JetBrains Mono';font-size:11px;color:var(--ink-2)">${M(p.low)} – ${M(p.high)} · median ${M(p.avg)}</span>
+      <span class="nn" style="width:74px;color:${p.avg_bids<2?'var(--mint)':p.avg_bids<4?'var(--ink-2)':'var(--amber)'}">${p.avg_bids||'?'} bids</span>
+      <span class="nn" style="width:44px">n=${p.n}</span></div>`).join(''):'';
+
+  $('#intelBody').innerHTML=
+    `<div class="kpis">
+       <div class="kpi"><div class="k">Market seen</div><div class="v" style="font-size:19px">${M(s.total_value)}</div></div>
+       <div class="kpi" style="border-color:var(--mint)"><div class="k">Jazz share</div><div class="v" style="color:var(--mint)">${s.our_share}%</div></div>
+       <div class="kpi" style="border-color:var(--red)"><div class="k">To defend</div><div class="v" style="color:var(--red);font-size:19px">${M(s.defend_value)}</div></div>
+       <div class="kpi" style="border-color:var(--accent)"><div class="k">To attack</div><div class="v" style="color:var(--accent);font-size:19px">${M(s.attack_value)}</div></div>
+       <div class="kpi"><div class="k">Buyers</div><div class="v">${s.buyers||0}</div></div>
+       <div class="kpi"><div class="k">Suppliers</div><div class="v">${s.suppliers||0}</div></div>
+     </div>
+     <div class="bhead" style="margin-bottom:18px">${esc(head)}</div>
+
+     <div class="bsec"><h3>Account map · share of each buyer's awarded spend<span class="cnt">${(b.accounts||[]).length}</span></h3>
+       <div class="card" style="padding:10px 0">
+         <div class="arow ahead"><div class="an">Buyer</div><div class="ab">Jazz share</div><div class="ap">%</div>
+           <div class="av">Awarded</div><div class="ag">Gap</div><div class="ax">Competition</div><div class="ar">Next renewal</div></div>
+         ${acct}</div></div>
+
+     <div class="bsec"><h3>Contracts we hold · defend<span class="cnt">${(b.defend||[]).length}</span></h3>${defend}</div>
+
+     <div class="bsec"><h3>Competitor-held contracts returning to market · attack<span class="cnt">${(b.attack||[]).length}</span></h3>${attack}</div>
+
+     <div class="bsec"><h3>Overdue buyers · a tender is due on their own cadence<span class="cnt">${(b.overdue||[]).length}</span></h3>
+       <div class="card" style="padding:8px 0">${od}</div></div>
+
+     <div class="bsec"><h3>Supplier league table<span class="cnt">${(b.rivals||[]).length}</span></h3>
+       <div class="card" style="padding:10px 0">
+         <div class="arow ahead"><div class="an">Supplier</div><div class="ab">Value share</div><div class="ap">Wins</div>
+           <div class="av">Value</div><div class="ag">Avg bidders</div><div class="ax">Walkovers</div><div class="ar">Last win</div></div>
+         ${riv}</div></div>
+
+     <div class="ogrid">
+       <div class="card ocard"><h4>Renewal calendar · green is ours, blue is contestable</h4><div style="padding:10px 0">${calHtml}</div></div>
+       ${priceHtml?`<div class="card ocard"><h4>Price bands and contest level from awards</h4><div style="padding:8px 0">${priceHtml}</div></div>`:''}
+     </div>
+     <p style="font-size:11.5px;color:var(--ink-3);margin-top:16px;line-height:1.7">
+       Every award figure derives from published contract awards. Renewal dates are inferred from the contract term stated in the award wording, for example "for a period of three (03) years", so treat them as planning signals rather than commitments. Share of wallet reflects only awards this database has collected, not total buyer spend. Supplier names are consolidated across spelling variants. Live demand is drawn from open and recent tenders.</p>`;
+  $('#intelBody').insertAdjacentHTML('afterbegin', demandHtml);
+}
+
+let NPOFF=0, NPTOTAL=0, npTimer=null;
+function npDebounce(){clearTimeout(npTimer);npTimer=setTimeout(()=>loadNpFeed(),350)}
+async function loadNpFeed(append){
+  const p=new URLSearchParams();
+  p.set('tiers','Newspaper');
+  const q=($('#npQ')&&$('#npQ').value||'').trim(); if(q)p.set('q',q);
+  p.set('scope',($('#npScope')&&$('#npScope').value)||'all');
+  const st=($('#npStatusSel')&&$('#npStatusSel').value)||''; if(st)p.set('status',st);
+  const ln=($('#npLane')&&$('#npLane').value)||''; if(ln)p.set('lanes',ln);
+  p.set('digital_only','0'); p.set('sort','closing');
+  p.set('limit','60'); p.set('offset',append?NPOFF:0);
+  let d; try{d=await api('/api/tenders?'+p)}catch(e){return}
+  NPTOTAL=d.total;
+  if($('#npSub'))$('#npSub').textContent=d.total+' newspaper tenders match. Filter like the main feed.';
+  if(!d.rows.length&&!append){
+    $('#npFeedList').innerHTML='<div class="card empty">No newspaper tenders yet.<br>Run <b>Probe papers</b> to see which resolve today, then <b>Fetch now</b> to pull them in.</div>';
+    $('#npMoreBtn').style.display='none';return;
+  }
+  const h=d.rows.map(rowHTML).join('');
+  if(append){$('#npFeedList').insertAdjacentHTML('beforeend',h)}else{$('#npFeedList').innerHTML=h}
+  NPOFF=(append?NPOFF:0)+d.rows.length;
+  $('#npMoreBtn').style.display=NPOFF<NPTOTAL?'block':'none';
+  $('#npMoreBtn').textContent='Load more ('+(NPTOTAL-NPOFF)+' remaining)';
+}
+async function npProbe(){
+  const m=$('#npMsg'); if(m)m.textContent='Probing papers…';
+  try{
+    const r=await api('/api/newspaper-probe',{method:'POST'});
+    if(!r.ok){if(m)m.textContent=r.error||'Could not start';return}
+    const poll=setInterval(async()=>{
+      const s=await api('/api/newspaper-status');
+      if(!s.running){clearInterval(poll);
+        const ok=(s.probe||[]).filter(x=>x.ok).map(x=>x.paper);
+        const no=(s.probe||[]).filter(x=>!x.ok).map(x=>x.paper);
+        if(m)m.innerHTML='Resolved: <b>'+(ok.join(', ')||'none')+'</b>'+(no.length?' · not today: '+no.join(', '):'');
+      }
+    },3000);
+  }catch(e){if(m)m.textContent='Probe failed.'}
+}
+async function npFetch(){
+  const m=$('#npMsg'); if(m)m.textContent='Fetching editions…';
+  try{
+    const r=await api('/api/newspaper-fetch',{method:'POST'});
+    if(!r.ok){if(m)m.textContent=r.error||'Could not start';return}
+    const poll=setInterval(async()=>{
+      const s=await api('/api/newspaper-status');
+      if(!s.running){clearInterval(poll); if(m)m.textContent=(s.note||'done')+'.'; loadNpFeed();}
+    },4000);
+  }catch(e){if(m)m.textContent='Fetch failed.'}
+}
+
+async function startImport(inp){
+  const m=document.getElementById('impMsg');
+  const f=inp.files&&inp.files[0]; if(!f) return;
+  if(m)m.textContent='Uploading '+f.name+'…';
+  try{
+    const fd=new FormData(); fd.append('file',f);
+    const r=await fetch('/api/import',{method:'POST',body:fd});
+    if(r.status===401){$('#gate').style.display='grid'; if(m)m.textContent='Please sign in again.'; return;}
+    const j=await r.json();
+    if(!j.ok){ if(m)m.textContent=j.error||'Import failed'; }
+    else { if(m)m.textContent=j.message+' Refreshing…'; setTimeout(()=>loadIntel(),1200); }
+  }catch(e){ if(m)m.textContent='Import failed.'; }
+  inp.value='';
+}
+
+async function startBackfill(){
+  const m=document.getElementById('bfMsg');
+  if(m)m.textContent='Starting…';
+  try{
+    const r=await api('/api/backfill',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({source:'EPMS-Awards',pages:200})});
+    if(!r.ok){ if(m)m.textContent=r.error||'Could not start'; return; }
+    if(m)m.textContent='Running in the background. This can take a while. You can leave this page.';
+    const poll=setInterval(async()=>{
+      try{
+        const st=await api('/api/backfill-status');
+        if(st && !st.running){ clearInterval(poll); if(m)m.textContent='Done. Refreshing…'; setTimeout(()=>loadIntel(),1200); }
+      }catch(e){ clearInterval(poll); }
+    },5000);
+  }catch(e){ if(m)m.textContent='Could not start the backfill.'; }
+}
+
+async function loadOverview(){
+  const o=await api('/api/overview'); const s=FACETS.stats;
+  $('#kpis').innerHTML=[
+    ['Total tracked',s.total],['Digital',s.digital],['Open digital',s.open_digital],
+    ['Closing 7d',s.closing_week],['High relevance',s.high_rel],['New',s.new_digital]
+  ].map(([k,v])=>`<div class="kpi"><div class="k">${k}</div><div class="v">${v||0}</div></div>`).join('');
+
+  const bars=(title,rows,val='n')=>{
+    if(!rows||!rows.length)return '';
+    const max=Math.max(...rows.map(r=>r[val]||0),1);
+    return `<div class="card ocard"><h4>${title}</h4>${rows.slice(0,10).map(r=>
+      `<div class="brow"><span class="lb" title="${esc(r.k)}">${esc(r.k||'—')}</span>
+       <span class="g"><i style="width:${Math.max(3,(r[val]/max*100))}%"></i></span>
+       <span class="nn">${r[val]||0}</span></div>`).join('')}</div>`;
+  };
+  const cal=o.calendar||[]; const cmax=Math.max(...cal.map(c=>c.n),1);
+  const days=[];
+  for(let i=0;i<30;i++){
+    const d=new Date(); d.setDate(d.getDate()+i);
+    const iso=d.toISOString().slice(0,10);
+    const hit=cal.find(c=>c.k===iso);
+    days.push(`<div class="cday" title="${iso}${hit?': '+hit.n+' closing':''}" ${hit?`style="background:var(--accent);opacity:${(.3+.7*(hit.n/cmax)).toFixed(2)}"`:''}>${hit?`<span>${hit.n}</span>`:''}</div>`);
+  }
+  $('#ocards').innerHTML=
+    bars('By digital domain',o.by_domain)+
+    bars('By source',o.by_source)+
+    bars('Top buyers (digital)',o.by_buyer,'dig')+
+    bars('By value band',o.value_bands)+
+    `<div class="card ocard"><h4>Closing calendar — next 30 days</h4><div class="cal">${days.join('')}</div></div>`+
+    bars('Advertised by month',(o.monthly||[]).slice().reverse());
+}
+
+async function loadContacts(){
+  const d=await api('/api/buyers?limit=60');
+  $('#contactGrid').innerHTML=d.rows.length?d.rows.map(b=>{
+    const init=(b.buyer||'').replace(/[^A-Za-z ]/g,'').split(' ').filter(Boolean).slice(0,3).map(w=>w[0]).join('').toUpperCase()||'—';
+    return `<div class="inst">
+      <div class="insthead"><div class="crest" style="background:${sc(b.source)}">${esc(init)}</div>
+        <div><h3>${esc((b.buyer||'').slice(0,70))}</h3><div class="sub">${esc(b.jurisdiction||'')} · ${esc(b.source||'')}</div></div></div>
+      <div class="cbody">
+        <div class="row"><span>Contact</span>${esc(b.contact_name||'Not published')}</div>
+        <div class="row"><span>Email</span>${esc(b.contact_email||'Not published')}</div>
+        <div class="row"><span>Phone</span>${esc(b.contact_phone||'Not published')}</div>
+      </div>
+      <div class="instfoot"><span>Digital <b>${b.digital}</b></span><span>Open <b>${b.open_now||0}</b></span>
+        <span>Total <b>${b.tenders}</b></span>${b.avg_window?`<span>Window <b>${b.avg_window}d</b></span>`:''}</div>
+    </div>`;
+  }).join(''):'<div class="card empty">No buyers yet. Run a scan.</div>';
+}
+
+function rawView(src){F.sources=[src];F.domains=[];F.relevance=[];F.jurisdictions=[];F.lanes=[];F.scope='all';F.status='';F.within=null;F.new_only=0;F.q='';go('feed');refresh()}
+async function doReconcile(){
+  const f=$('#recFile').files[0];
+  if(!f){alert('Choose a CSV or Excel file first');return}
+  $('#recOut').innerHTML='<div class="card empty">Checking…</div>';
+  const fd=new FormData(); fd.append('file',f);
+  const r=await fetch('/api/reconcile',{method:'POST',body:fd});
+  if(!r.ok){$('#recOut').innerHTML='<div class="card empty">Upload failed.</div>';return}
+  const d=await r.json();
+  if(d.error){$('#recOut').innerHTML=`<div class="card empty">${esc(d.error)}</div>`;return}
+  const s=d.summary||{};
+  REC=d; REC.file_name=(f&&f.name)||'list';
+  const w=d.window||{};
+  $('#recOut').innerHTML=`<div class="kpis">
+      <div class="kpi"><div class="k">Checked</div><div class="v">${d.count}</div></div>
+      <div class="kpi"><div class="k">Found</div><div class="v" style="color:var(--mint)">${s.found||0}</div></div>
+      <div class="kpi"><div class="k">Possible</div><div class="v" style="color:var(--amber)">${s.possible||0}</div></div>
+      <div class="kpi"><div class="k">Missing</div><div class="v" style="color:var(--red)">${s.missing||0}</div></div>
+      <div class="kpi"><div class="k">Too vague</div><div class="v" style="color:var(--ink-3)">${s.insufficient||0}</div></div>
+      <div class="kpi" style="border-color:var(--mint)"><div class="k">Hit rate (collectable)</div><div class="v" style="color:var(--mint)">${s.hit_rate||0}%</div></div>
+      <div class="kpi" style="border-color:var(--accent)"><div class="k">Not on your list</div><div class="v" style="color:var(--accent)">${d.missed_count||0}</div></div>
+    </div>
+    <div class="seg" style="max-width:440px;margin-bottom:12px">
+      <button id="rvA" aria-pressed="true" onclick="recView('list')">Your list (${d.count})</button>
+      <button id="rvB" aria-pressed="false" onclick="recView('missed')">Missed by us (${d.missed_count||0})</button>
+    </div>
+    <button class="btn" id="xlBtn" style="max-width:290px;margin-bottom:14px" onclick="dlReconcileXlsx()">Download full report (Excel)</button>
+    <div class="bhead" style="margin-bottom:14px">${(()=>{
+        const c=s.collectable||0, hit=s.hit_rate||0, iv=s.insufficient||0;
+        let t=`${hit}% of the ${c} matchable rows were located on the portals.`;
+        if(iv)t+=` ${iv} carried too little description to match.`;
+        t+=` Separately, ${d.missed_count||0} biddable tenders were published in this window that do not appear on the list.`;
+        return esc(t);})()}</div>
+    <p style="font-size:12px;color:var(--ink-3);margin-bottom:12px">Window ${esc(w.from||'--')} to ${esc(w.to||'--')} · biddable lanes only · duplicates excluded.${(d.coverage&&d.coverage.first_scan)?` Database coverage begins ${esc(d.coverage.first_scan)}; rows closing before that are excluded from the hit rate.`:''}${d.rows_expanded?` ${d.rows_expanded} extra rows created by splitting bundled cells.`:''}</p>
+    <div id="recBody"></div>`;
+  recView('list');
+}
+
+let REC=null;
+
+function recView(which){
+  const d=REC; if(!d) return;
+  const A=document.getElementById('rvA'), B=document.getElementById('rvB');
+  if(A&&B){A.setAttribute('aria-pressed', which==='list'); B.setAttribute('aria-pressed', which==='missed');}
+
+  if(which==='missed'){
+    const m=d.missed||[];
+    let h = m.length ? '<button class="iconbtn" style="margin-bottom:12px" onclick="dlMissed()">Download as CSV</button>' : '';
+    h += m.length ? m.map(r=>`<div class="trow" onclick="openTender('${esc(r.uid)}')">
+        <span class="stripe" style="background:${sc(r.source)}"></span>
+        <div class="tmain">
+          <div class="tmeta">
+            <span class="srcTag" style="color:${sc(r.source)}">${esc(r.source)}</span>
+            ${r.ref?`<span class="ref">${esc(r.ref)}</span>`:''}
+            <span class="rel ${r.lane==='Core'?'High':'Medium'}">${esc(r.lane)}</span>
+            ${r.product_line?`<span class="dom">${esc(r.product_line)}</span>`:''}
+          </div>
+          <div class="ttitle">${esc(r.title)}</div>
+          <div class="torg">${esc(r.buyer||'')}</div>
+        </div>
+        <div class="tside"><div class="val"><small>Closes</small>${esc(r.closing||'--')}</div></div>
+      </div>`).join('')
+      : '<div class="card empty">Nothing biddable in this window is absent from your list.</div>';
+    document.getElementById('recBody').innerHTML=h;
+    return;
+  }
+
+  document.getElementById('recBody').innerHTML=(d.results||[]).map(r=>`<div class="trow" style="cursor:${r.match?'pointer':'default'}" ${r.match?`onclick="openTender('${esc(r.match.uid)}')"`:''}>
+      <span class="stripe" style="background:${r.status==='found'?'var(--mint)':r.status==='possible'?'var(--amber)':r.status==='insufficient'?'var(--ink-3)':'var(--red)'}"></span>
+      <div class="tmain">
+        <div class="tmeta">
+          <span class="rel ${r.status==='found'?'High':'Medium'}">${esc(r.status)}</span>
+          <span class="ref">confidence ${r.confidence}</span>
+          ${r.why?`<span style="font-size:10.5px;color:var(--ink-3)">${esc(r.why)}</span>`:''}
+          ${r.match?`<span class="srcTag" style="color:${sc(r.match.source)}">${esc(r.match.source)}</span>`:''}
+        </div>
+        <div class="ttitle">${esc((r.input.description||'(no description)').slice(0,110))}</div>
+        <div class="torg">${esc(r.input.department||'')} ${r.input.submission_date?'· due '+esc(r.input.submission_date):''}</div>
+        ${r.match?`<div class="torg" style="color:var(--accent);margin-top:3px">matched: ${esc(r.match.title.slice(0,90))}</div>`:''}
+        ${(r.candidates&&r.candidates.length>1&&r.status!=='found')?`<div style="margin-top:5px;padding-top:5px;border-top:1px dashed var(--line-2)">
+          <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:3px">Other candidates</div>
+          ${r.candidates.slice(1,3).map(cd=>`<div style="font-size:11.5px;color:var(--ink-2);padding:1px 0" onclick="event.stopPropagation();openTender('${esc(cd.uid)}')">
+            <span class="ref">${cd.score}</span> ${esc((cd.title||'').slice(0,68))} <span style="color:var(--ink-3)">· closes ${esc(cd.closing||'--')}${cd.why?' · '+esc(cd.why):''}</span></div>`).join('')}
+        </div>`:''}
+      </div>
+      <div class="tside"><div class="val"><small>Portal ref</small>${r.match?esc(r.match.ref||'--'):'--'}</div></div>
+    </div>`).join('');
+}
+
+async function dlReconcileXlsx(){
+  if(!REC){alert('Run a reconciliation first.');return}
+  const btn=document.getElementById('xlBtn');
+  if(btn){btn.textContent='Building…'}
+  try{
+    const r=await fetch('/api/reconcile-export',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(Object.assign({},REC,{source_name:REC.file_name||'list'}))});
+    if(!r.ok){alert('Could not build the workbook: '+r.status);return}
+    const b=await r.blob();
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(b);
+    a.download='reconciliation.xlsx';
+    document.body.appendChild(a); a.click(); a.remove();
+  }catch(e){alert('Download failed.')}
+  finally{if(btn){btn.textContent='Download full report (Excel)'}}
+}
+
+function dlMissed(){
+  const m=(REC&&REC.missed)||[]; if(!m.length) return;
+  const cols=['source','ref','title','buyer','jurisdiction','lane','product_line','fit_score','advertised','closing','value_text','url'];
+  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const csv=[cols.join(',')].concat(m.map(r=>cols.map(c=>q(r[c])).join(','))).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+  a.download='tenders_not_on_your_list.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+function doExport(){window.location='/api/export?'+qs()}
+
+function renderHealth(){
+  const el=document.getElementById('health'); if(!el) return;
+  el.innerHTML=(FACETS.health||[]).map(s=>{
+    const stale=s.last_ok&&((Date.now()-new Date(s.last_ok.includes('+')?s.last_ok:s.last_ok+'Z'))/36e5>14);
+    const cls=s.status==='ok'?(stale?'stale':'ok'):'bad';
+    return `<span class="hpill ${cls}" style="cursor:pointer" title="${esc(s.message||'')} — click for raw view" onclick="rawView('${esc(s.source)}')"><i></i>${esc(s.source)} <b>${s.total_rows||0}</b></span>`;
+  }).join('');
+}
+async function runScan(){
+  const b=$('#scanBtn'); b.innerHTML='<span class="spin"></span> Scanning';
+  try{
+    await api('/api/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const poll=setInterval(async()=>{
+      const s=await api('/api/scan-status');
+      if(!s.running){clearInterval(poll);b.textContent='Scan now';boot()}
+    },4000);
+  }catch(e){b.textContent='Scan now'}
+}
+
+async function boot(){
+  FACETS=await api('/api/facets');
+  $('#themeBtn').textContent=document.documentElement.getAttribute('data-theme')==='light'?'Dark':'Light';
+  renderTabs(); renderFilters(); renderHealth(); OFFSET=0;
+  const lr=FACETS.last_run||{};
+  if(lr.finished){const d=new Date(lr.finished.includes('+')?lr.finished:lr.finished+'Z');
+    $('#lastScan').innerHTML=`<i style="background:var(--mint)"></i>Last scan <b>${d.toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</b> · +${lr.rows_new||0} new`;}
+  await loadFeed();
+}
+(async()=>{try{const m=await api('/api/me');if(m.authed){const g=$('#gate'); if(g)g.remove(); boot()}}catch(e){}})();
+
+async function doAsk(){
+  const q=$('#aq').value.trim(); if(!q)return;
+  let key=$('#akey').value.trim();
+  if(key){try{localStorage.setItem('td_akey',key)}catch(e){}}
+  else{try{key=localStorage.getItem('td_akey')||''}catch(e){}}
+  keyState();
+  $('#aout').textContent='Thinking…';
+  try{
+    const r=await api('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({question:q,api_key:key})});
+    $('#aout').textContent=r.answer;
+  }catch(e){$('#aout').textContent='Request failed.'}
+}
+function keyState(){
+  let has=false; try{has=!!localStorage.getItem('td_akey')}catch(e){}
+  const el=document.getElementById('keyState');
+  if(el)el.textContent=has?'key saved in this browser':'no key saved';
+  const inp=document.getElementById('akey');
+  if(inp){inp.value=''; inp.placeholder=has?'Key saved. Type a new one to replace it.':'Anthropic API key'}
+}
+function clearKey(){try{localStorage.removeItem('td_akey')}catch(e){} keyState()}
+
+async function loadFiller(){
+  const d=await api('/api/templates');
+  $('#tplList').innerHTML=d.templates.length?d.templates.map(t=>
+    `<div style="display:flex;gap:10px;align-items:center;padding:4px 0">
+      <span class="mono" style="font-size:12px">${esc(t.name)}</span>
+      <span style="color:var(--ink-3);font-size:11px">${Math.round(t.size/1024)} KB</span>
+      <button class="iconbtn" style="padding:2px 9px;font-size:11px" onclick="delTpl('${esc(t.name)}')">delete</button>
+    </div>`).join(''):'<span style="color:var(--ink-3)">No templates yet.</span>';
+  $('#fillTpl').innerHTML=d.templates.map(t=>`<option>${esc(t.name)}</option>`).join('')||'<option value="">— upload a template first —</option>';
+}
+async function uploadTpl(){
+  const f=$('#tplFile').files[0]; if(!f){alert('Choose a .docx file first');return}
+  const fd=new FormData(); fd.append('file',f);
+  const r=await fetch('/api/templates',{method:'POST',body:fd});
+  if(r.ok){$('#tplFile').value='';loadFiller()}else{alert('Upload failed: '+await r.text())}
+}
+async function delTpl(n){await fetch('/api/templates/'+encodeURIComponent(n),{method:'DELETE'});loadFiller()}
+async function doFill(){
+  const ref=$('#fillRef').value.trim(), tpl=$('#fillTpl').value;
+  if(!ref||!tpl){$('#fillMsg').textContent='Enter a tender reference and pick a template.';return}
+  $('#fillMsg').textContent='Locating tender…';
+  const d=await api('/api/tenders?q='+encodeURIComponent(ref)+'&scope=all&status=&limit=3');
+  if(!d.rows.length){$('#fillMsg').textContent='No tender found with that reference.';return}
+  const uid=d.rows[0].uid;
+  $('#fillMsg').textContent='Generating '+d.rows[0].title.slice(0,60)+'…';
+  window.location='/api/fill?uid='+encodeURIComponent(uid)+'&template='+encodeURIComponent(tpl);
+  setTimeout(()=>{$('#fillMsg').textContent='Downloaded.'},1500);
+}
+
+</script>
+</body>
+</html>

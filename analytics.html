@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tender Desk · Analytics</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+  :root{
+    --bg:#f4f6f8; --panel:#ffffff; --ink:#14262c; --ink-2:#4a5b62; --ink-3:#8a99a0;
+    --line:#e4eaed; --brand:#0f5c6b; --brand-2:#1786a0; --accent:#e08a3c;
+    --good:#2f8f6b; --warn:#c9772f;
+    --shadow:0 1px 2px rgba(20,38,44,.04),0 8px 24px rgba(20,38,44,.05);
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1280px;margin:0 auto;padding:26px 26px 60px}
+  header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:22px}
+  h1{font-size:23px;letter-spacing:-.02em;margin:0}
+  .sub{color:var(--ink-3);font-size:13px;margin-top:4px}
+  .pill{display:inline-flex;gap:6px;align-items:center;background:#eef4f5;color:var(--brand);
+    border-radius:999px;padding:5px 11px;font-size:12px;font-weight:600}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+    padding:16px 18px;box-shadow:var(--shadow)}
+  .kpi .n{font-size:26px;font-weight:700;letter-spacing:-.02em;line-height:1}
+  .kpi .l{font-size:11.5px;color:var(--ink-3);margin-top:8px;text-transform:uppercase;letter-spacing:.06em}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+    box-shadow:var(--shadow);padding:18px 20px;margin-bottom:18px}
+  .card h2{font-size:15px;margin:0 0 2px;letter-spacing:-.01em}
+  .card .note{font-size:12px;color:var(--ink-3);margin:0 0 14px}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+  .seg{display:inline-flex;background:#eef2f4;border-radius:10px;padding:3px}
+  .seg button{border:0;background:transparent;padding:7px 14px;border-radius:8px;font-size:13px;
+    color:var(--ink-2);cursor:pointer;font-weight:600}
+  .seg button.on{background:var(--panel);color:var(--brand);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  label.fld{font-size:12px;color:var(--ink-3);display:flex;flex-direction:column;gap:4px}
+  select,input[type=text]{border:1px solid var(--line);background:var(--panel);border-radius:9px;
+    padding:8px 10px;font-size:13px;color:var(--ink);min-width:150px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .grid2 .card{margin-bottom:0}
+  .chart{width:100%}
+  .askrow{display:flex;gap:10px}
+  .askrow input{flex:1}
+  .btn{background:var(--brand);color:#fff;border:0;border-radius:9px;padding:9px 16px;
+    font-size:13px;font-weight:600;cursor:pointer}
+  .btn:hover{background:#0c4e5b}
+  .muted{color:var(--ink-3);font-size:12.5px}
+  #askOut{margin-top:14px;font-size:14px;line-height:1.6;color:var(--ink)}
+  @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Analytics</h1>
+      <div class="sub">Live view of the opportunity dataset. Updates as the feed and imports do.</div>
+    </div>
+    <div class="pill" id="freshness">loading…</div>
+  </header>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="card">
+    <h2>Opportunities over time</h2>
+    <p class="note">Each point is a tender or award placed on its date against its value. Colour is the lens.
+      Switch the lens to read the same market by category, by buyer, by bidder, or by source. Click a legend entry to isolate it.</p>
+    <div class="controls">
+      <div class="seg" id="dsSeg">
+        <button data-ds="tenders" class="on">Tenders</button>
+        <button data-ds="awards">Awards</button>
+      </div>
+      <label class="fld">Colour by
+        <select id="colorBy">
+          <option value="cat">Category</option>
+          <option value="lane">Jazz lane</option>
+          <option value="buyer">Buyer</option>
+          <option value="winner">Bidder (awards)</option>
+          <option value="source">Source</option>
+        </select>
+      </label>
+      <label class="fld">Y axis
+        <select id="yAxis">
+          <option value="value">Value (log)</option>
+          <option value="jitter">Spread (count)</option>
+        </select>
+      </label>
+      <label class="fld">Relevance
+        <select id="scope">
+          <option value="all">All rows</option>
+          <option value="opp" selected>Jazz opportunities</option>
+        </select>
+      </label>
+    </div>
+    <div id="scatter" class="chart" style="height:440px"></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card"><h2>Volume by month</h2><p class="note">Tender flow over time, split by Jazz lane.</p>
+      <div id="volume" class="chart" style="height:300px"></div></div>
+    <div class="card"><h2>Demand by category</h2><p class="note">Where the opportunities concentrate.</p>
+      <div id="cats" class="chart" style="height:300px"></div></div>
+  </div>
+
+  <div class="grid2" style="margin-top:18px">
+    <div class="card"><h2>Most active buyers</h2><p class="note">Institutions publishing the most Jazz-relevant demand.</p>
+      <div id="buyers" class="chart" style="height:320px"></div></div>
+    <div class="card"><h2>Lane mix</h2><p class="note">How the pipeline splits across Core, Partner, Signal.</p>
+      <div id="lanes" class="chart" style="height:320px"></div></div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <h2>Ask the data</h2>
+    <p class="note">Natural-language questions over the current dataset. Ask for a comparison and it answers in words, and where it can, a chart.</p>
+    <div class="askrow">
+      <input id="askQ" type="text" placeholder="e.g. compare award value by buyer, or which categories are growing">
+      <button class="btn" onclick="ask()">Ask</button>
+    </div>
+    <div id="askOut"></div>
+  </div>
+
+  <p class="muted" style="margin-top:22px">Value is shown where the source publishes it. Tender value coverage is partial, so counts are the reliable lens for tenders; awards carry value on every row.</p>
+</div>
+
+<script>
+const PALETTE=['#0f5c6b','#e08a3c','#1786a0','#2f8f6b','#b5546b','#8a6fbf','#c9a227',
+  '#4a7c9c','#c9772f','#5aa17f','#9c5a7c','#6f8fbf'];
+let DATA=null, DS='tenders';
+const $=id=>document.getElementById(id);
+const money=v=>!v?'—':v>=1e9?'PKR '+(v/1e9).toFixed(2)+'B':v>=1e6?'PKR '+(v/1e6).toFixed(1)+'M':'PKR '+Math.round(v).toLocaleString();
+const LAYOUT={font:{family:'Inter,system-ui,sans-serif',size:12,color:'#4a5b62'},
+  paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',
+  margin:{l:56,r:16,t:8,b:40},xaxis:{gridcolor:'#eef2f4',zeroline:false},
+  yaxis:{gridcolor:'#eef2f4',zeroline:false},legend:{font:{size:11}}};
+const CFG={displayModeBar:false,responsive:true};
+
+async function load(){
+  let r;
+  try{ r=await fetch('/api/analytics'); }catch(e){ return gate(); }
+  if(r.status===401) return gate();
+  DATA=await r.json();
+  $('freshness').textContent=DATA.meta.tender_count+' tenders · '+DATA.meta.award_count+' awards';
+  kpis(); draw();
+}
+function gate(){
+  document.querySelector('.wrap').innerHTML='<div class="card"><h2>Sign in first</h2>'+
+    '<p class="note">Open the main dashboard, sign in, then return to this page. It shares that session.</p></div>';
+}
+function kpis(){
+  const m=DATA.meta;
+  const opp=DATA.tenders.filter(t=>t.opp).length;
+  $('kpis').innerHTML=[
+    ['Tenders tracked', m.tender_count.toLocaleString()],
+    ['Jazz opportunities', opp.toLocaleString()],
+    ['Awards on record', m.award_count.toLocaleString()],
+    ['Award value', money(m.award_value)],
+  ].map(k=>`<div class="kpi"><div class="n">${k[1]}</div><div class="l">${k[0]}</div></div>`).join('');
+}
+function rows(){
+  let d=DATA[DS].filter(r=>r.d);
+  if($('scope').value==='opp') d=d.filter(r=>r.opp);
+  return d;
+}
+function drawScatter(){
+  const dim=$('colorBy').value, yMode=$('yAxis').value;
+  let d=rows();
+  // group by colour dimension
+  const groups={};
+  d.forEach(r=>{
+    let k=r[dim]; if(!k||k==='None') k= dim==='winner'?'Unnamed':'Unclassified';
+    (groups[k]=groups[k]||[]).push(r);
+  });
+  // keep the 12 largest groups, fold the rest into "Other"
+  const keys=Object.keys(groups).sort((a,b)=>groups[b].length-groups[a].length);
+  const top=keys.slice(0,12), rest=keys.slice(12);
+  if(rest.length){ groups['Other']=[].concat(...rest.map(k=>groups[k])); top.push('Other'); }
+  const traces=top.map((k,i)=>{
+    const g=groups[k];
+    return {
+      type:'scattergl', mode:'markers', name:k.length>26?k.slice(0,25)+'…':k,
+      x:g.map(r=>r.d),
+      y:g.map((r,j)=> yMode==='value' ? (r.v||null) : (i+1)+(Math.random()-.5)*0.6),
+      text:g.map(r=>`${r.buyer||''}<br>${r.title||''}`),
+      hovertemplate:'%{text}<br>%{x}'+(yMode==='value'?'<br>%{y:,.0f} PKR':'')+'<extra>'+k+'</extra>',
+      marker:{size:8,opacity:.72,color:PALETTE[i%PALETTE.length],line:{width:0}}
+    };
+  });
+  const lay=JSON.parse(JSON.stringify(LAYOUT));
+  lay.xaxis.title='';
+  if(yMode==='value'){ lay.yaxis.type='log'; lay.yaxis.title='Value (PKR, log)'; }
+  else { lay.yaxis.title=''; lay.yaxis.showticklabels=false; }
+  Plotly.react('scatter',traces,lay,CFG);
+}
+function drawVolume(){
+  const d=rows();
+  const lanes=['Core','Partner-led','Signal','None'];
+  const byMonth={};
+  d.forEach(r=>{const m=(r.d||'').slice(0,7); if(!m)return; (byMonth[m]=byMonth[m]||{})[r.lane]=(byMonth[m]?.[r.lane]||0)+1;});
+  const months=Object.keys(byMonth).sort();
+  const traces=lanes.map((ln,i)=>({type:'bar',name:ln==='None'?'Other':ln,x:months,
+    y:months.map(m=>byMonth[m][ln]||0),marker:{color:PALETTE[i%PALETTE.length]}}));
+  const lay=JSON.parse(JSON.stringify(LAYOUT)); lay.barmode='stack';
+  Plotly.react('volume',traces,lay,CFG);
+}
+function bar(el,pairs,color){
+  pairs=pairs.slice(0,10).reverse();
+  Plotly.react(el,[{type:'bar',orientation:'h',x:pairs.map(p=>p[1]),
+    y:pairs.map(p=>String(p[0]).length>26?String(p[0]).slice(0,25)+'…':p[0]),
+    marker:{color:color}}],
+    Object.assign(JSON.parse(JSON.stringify(LAYOUT)),{margin:{l:150,r:16,t:8,b:30}}),CFG);
+}
+function drawCatsBuyers(){
+  bar('cats',DATA.meta.by_category,'#1786a0');
+  bar('buyers',DATA.meta.top_buyers,'#0f5c6b');
+}
+function drawLanes(){
+  const l=DATA.meta.by_lane;
+  Plotly.react('lanes',[{type:'pie',hole:.58,
+    labels:l.map(x=>x[0]==='None'?'Other':x[0]),values:l.map(x=>x[1]),
+    marker:{colors:PALETTE},textinfo:'label+percent',textfont:{size:11}}],
+    Object.assign(JSON.parse(JSON.stringify(LAYOUT)),{showlegend:false,margin:{l:8,r:8,t:8,b:8}}),CFG);
+}
+function draw(){ drawScatter(); drawVolume(); drawCatsBuyers(); drawLanes(); }
+
+// controls
+document.querySelectorAll('#dsSeg button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#dsSeg button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); DS=b.dataset.ds;
+  $('colorBy').value = DS==='awards'?'winner':'cat';
+  drawScatter(); drawVolume();
+});
+['colorBy','yAxis','scope'].forEach(id=>$(id).addEventListener('change',()=>{drawScatter();drawVolume();}));
+
+async function ask(){
+  const q=$('askQ').value.trim(); if(!q) return;
+  let key=''; try{key=localStorage.getItem('td_akey')||''}catch(e){}
+  if(!key){ $('askOut').innerHTML='<span class="muted">Set your API key once on the main dashboard\u2019s Ask tab, then it works here too.</span>'; return; }
+  $('askOut').innerHTML='<span class="muted">Thinking\u2026</span>';
+  try{
+    const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({question:q, api_key:key})});
+    const j=await r.json();
+    $('askOut').innerHTML = (j.answer||j.error||'No answer.').replace(/\n/g,'<br>');
+    if(j.chart && j.chart.x){
+      const div=document.createElement('div'); div.style.height='320px'; div.style.marginTop='14px';
+      $('askOut').appendChild(div);
+      const lay=JSON.parse(JSON.stringify(LAYOUT)); if(j.chart.title)lay.title={text:j.chart.title,font:{size:13}};
+      Plotly.newPlot(div,[{type:j.chart.type||'bar',x:j.chart.x,y:j.chart.y,
+        marker:{color:'#0f5c6b'}}],lay,CFG);
+    }
+  }catch(e){ $('askOut').textContent='Could not reach the model.'; }
+}
+load();
+</script>
+</body>
+</html>

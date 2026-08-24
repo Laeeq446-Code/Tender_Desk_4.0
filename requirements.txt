@@ -1,0 +1,10 @@
+apscheduler
+beautifulsoup4
+fastapi
+lxml
+openpyxl
+pillow
+pytesseract
+python-multipart
+requests
+uvicorn[standard]

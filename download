@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.env
+*.db-wal
+*.db-shm
+
+tenders.db
+epapers/_processed/

@@ -1,0 +1,4 @@
+# Railway / Nixpacks build config. Installs the Tesseract OCR binary and
+# poppler that the newspaper pipeline needs. Python deps come from requirements.txt.
+[phases.setup]
+nixPkgs = ["...", "tesseract", "poppler_utils"]
