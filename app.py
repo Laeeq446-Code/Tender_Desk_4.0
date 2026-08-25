@@ -33,7 +33,7 @@ SCAN_HOURS = [int(h) for h in os.getenv("SCAN_HOURS", "9,12,15,18").split(",")]
 TZ_OFFSET = int(os.getenv("TZ_OFFSET", "5"))          # PKT = UTC+5
 ENABLED = [s.strip() for s in os.getenv(
     "ENABLED_SOURCES", "EPMS,EPMS-Awards,EPADS,PPRA-Punjab,SPPRA-Sindh,KPPRA-KP,"
-    "BPPRA-Balochistan,WorldBank,ADB,UNGM").split(",") if s.strip()]
+    "BPPRA-Balochistan,Other,WorldBank,ADB,UNGM").split(",") if s.strip()]
 SHOW_FIT = os.getenv("SHOW_FIT", "0") == "1"          # keep off for public
 UI_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui.html")
 
@@ -456,7 +456,7 @@ async def api_np_probe(request: Request):
 @app.post("/api/newspaper-fetch")
 async def api_np_fetch(request: Request):
     require(request)
-    if os.environ.get("NEWSPAPER_FETCH_ENABLED", "0") != "1":
+    if os.environ.get("NEWSPAPER_FETCH_ENABLED", "1") != "1":
         return {"ok": False, "error": "Automated fetch is off. Set NEWSPAPER_FETCH_ENABLED=1 to enable."}
     if _np["running"]:
         return {"ok": False, "error": "a newspaper task is already running"}

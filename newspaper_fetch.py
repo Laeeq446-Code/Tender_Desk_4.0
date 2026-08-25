@@ -45,7 +45,7 @@ from datetime import date, timedelta
 import newspaper
 import db
 
-FETCH_ENABLED = os.environ.get("NEWSPAPER_FETCH_ENABLED", "0") == "1"
+FETCH_ENABLED = os.environ.get("NEWSPAPER_FETCH_ENABLED", "1") == "1"
 IMG_EXT = (".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp")
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
