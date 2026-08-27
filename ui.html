@@ -296,6 +296,25 @@ a{color:inherit;text-decoration:none}
       <button class="btn" style="max-width:130px" onclick="npFetch()">Fetch now</button>
     </div>
   </div>
+  <div class="card" style="padding:16px 18px;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div><b style="font-size:15px">Extraction preview</b>
+        <span style="font-size:11px;font-weight:700;color:#b26a00;background:#fff3e0;border-radius:999px;padding:2px 9px;margin-left:8px">SAMPLE</span>
+        <p style="font-size:12px;color:var(--ink-3);margin:4px 0 0">Illustration of how a printed tender notice becomes a structured, classified row. Pick a paper and preview.</p>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:14px 0 4px">
+      <label style="font-size:11px;color:var(--ink-3);display:flex;flex-direction:column;gap:4px">Newspaper
+        <select class="srch" id="npSPaper" style="width:170px">
+          <option>Dawn</option><option>The News</option><option>Business Recorder</option><option>Nawa-i-Waqt</option><option>The Nation</option></select></label>
+      <label style="font-size:11px;color:var(--ink-3);display:flex;flex-direction:column;gap:4px">Date
+        <input class="srch" type="date" id="npSDate" style="width:160px"></label>
+      <label style="font-size:11px;color:var(--ink-3);display:flex;flex-direction:column;gap:4px">Section
+        <select class="srch" id="npSSection" style="width:150px"><option>Tender notices</option><option>Classifieds</option></select></label>
+      <button class="btn" style="max-width:170px" onclick="previewExtraction()">Preview extraction</button>
+    </div>
+    <div id="npSample"></div>
+  </div>
   <div class="card" style="padding:12px 14px;margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
     <input class="srch" id="npQ" placeholder="Search newspaper tenders…" style="flex:1;min-width:200px" oninput="npDebounce()">
     <select class="srch" id="npScope" style="width:180px" onchange="loadNpFeed()">
@@ -1048,6 +1067,45 @@ async function loadNpFeed(append){
   NPOFF=(append?NPOFF:0)+d.rows.length;
   $('#npMoreBtn').style.display=NPOFF<NPTOTAL?'block':'none';
   $('#npMoreBtn').textContent='Load more ('+(NPTOTAL-NPOFF)+' remaining)';
+}
+const NP_SAMPLES=[
+  {raw:"GOVERNMENT OF PUNJAB — TENDER NOTICE\nSealed bids invited for Supply, Installation & Commissioning of SD-WAN enabled Next Generation Firewalls and Layer-2 switches for the Punjab Data Centre. Est. cost Rs. 45.0 M. Last date: {d1} at 11:00 AM.",
+   buyer:"Punjab Information Technology Board", title:"SD-WAN & Next-Gen Firewalls, Data Centre network", lane:"Core", cat:"Managed Security", value:"Rs 45.0M"},
+  {raw:"PAKISTAN RAILWAYS — INVITATION FOR BIDS\nProvision of Internet Bandwidth and MPLS connectivity across divisional offices for 03 years. Bid security 2%. Closing: {d2}.",
+   buyer:"Pakistan Railways", title:"Internet Bandwidth & MPLS connectivity, 3 years", lane:"Core", cat:"Connectivity", value:"—"},
+  {raw:"HEALTH DEPARTMENT — NIT No. 214\nProcurement, installation and commissioning of CCTV surveillance solution and public address system for the new district facility. Single stage two envelope. Submission: {d3}.",
+   buyer:"District Health Authority", title:"CCTV surveillance solution & PA system", lane:"Partner-led", cat:"Smart City & Surveillance", value:"Rs 12.6M"},
+  {raw:"NATIONAL BANK — CORRIGENDUM\nProcurement of Website Hosting and DDOS Protection Services (Ref P62807). Revised submission date {d1}.",
+   buyer:"National Bank of Pakistan", title:"Website Hosting & DDOS Protection Services", lane:"Core", cat:"Cloud & Hosting", value:"—"}
+];
+function _laneColor(l){return l==='Core'?'l-Core':l==='Partner-led'?'l-Partnerled':l==='Signal'?'l-Signal':'l-None';}
+function previewExtraction(){
+  const paper=$('#npSPaper').value, date=$('#npSDate').value||new Date().toISOString().slice(0,10);
+  const dd=new Date(date), fmt=n=>{const x=new Date(dd);x.setDate(x.getDate()+n);return x.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});};
+  const rows=NP_SAMPLES.map(s=>({...s, raw:s.raw.replace('{d1}',fmt(10)).replace('{d2}',fmt(14)).replace('{d3}',fmt(7))}));
+  const cards=rows.map(r=>`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:12px">
+      <div style="background:#f7f4ee;padding:14px 16px;border-right:1px solid var(--line)">
+        <div style="font-size:9.5px;font-weight:700;color:#9a8f7a;letter-spacing:1px;margin-bottom:6px">${paper.toUpperCase()} · PRINT NOTICE (OCR)</div>
+        <div style="font-family:Georgia,serif;font-size:12px;color:#3a352c;line-height:1.5;white-space:pre-wrap">${r.raw}</div>
+      </div>
+      <div style="padding:14px 16px">
+        <div style="font-size:9.5px;font-weight:700;color:var(--brand,#0f5c6b);letter-spacing:1px;margin-bottom:8px">EXTRACTED &amp; CLASSIFIED →</div>
+        <div style="font-weight:650;font-size:13.5px;color:var(--ink);margin-bottom:8px">${r.title}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <span class="lanepill ${_laneColor(r.lane)}">${r.lane}</span>
+          <span style="font-size:11px;background:#eef2f4;color:#5e7178;border-radius:999px;padding:2px 9px">${r.cat}</span>
+        </div>
+        <table style="font-size:11.5px;color:var(--ink-2);border:0"><tbody style="border:0">
+          <tr><td style="border:0;padding:2px 8px 2px 0;color:var(--ink-3)">Buyer</td><td style="border:0">${r.buyer}</td></tr>
+          <tr><td style="border:0;padding:2px 8px 2px 0;color:var(--ink-3)">Value</td><td style="border:0">${r.value}</td></tr>
+          <tr><td style="border:0;padding:2px 8px 2px 0;color:var(--ink-3)">Source</td><td style="border:0">Newspaper · ${paper}</td></tr>
+        </tbody></table>
+      </div>
+    </div>`).join('');
+  $('#npSample').innerHTML=`<div style="margin-top:14px">
+    <p style="font-size:12px;color:var(--ink-3);margin:0 0 10px">Sample only. Shows the pipeline: OCR the printed notice on the left, parse and classify into a structured row on the right. Live fetch fills the feed below the same way.</p>
+    ${cards}</div>`;
 }
 async function npProbe(){
   const m=$('#npMsg'); if(m)m.textContent='Probing papers…';

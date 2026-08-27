@@ -83,12 +83,13 @@
     <h2>Opportunities over time</h2>
     <p class="note">Each point is a tender or award on its month, against its value. Colour is the lens: switch it to read the same market by category, buyer, bidder, or source. Click a legend entry to isolate it.</p>
     <div class="controls">
-      <div class="seg" id="dsSeg"><button data-ds="tenders" class="on">Tenders</button><button data-ds="awards">Awards</button></div>
+      <div class="seg" id="dsSeg"><button data-ds="tenders" class="on">Tenders</button><button data-ds="awards">Awards (indicative)</button></div>
       <label class="fld">Colour by<select id="colorBy"><option value="cat">Category</option><option value="lane">Jazz lane</option><option value="buyer">Buyer</option><option value="winner">Bidder (awards)</option><option value="source">Source</option></select></label>
       <label class="fld">Y axis<select id="yAxis"><option value="value">Value (log)</option><option value="jitter">Spread (count)</option></select></label>
       <label class="fld">Relevance<select id="scope"><option value="all">All rows</option><option value="opp" selected>Jazz opportunities</option></select></label>
       <label class="fld">Period<select id="period"><option value="6">Last 6 months</option><option value="12" selected>Last 12 months</option><option value="all">All time</option></select></label>
     </div>
+    <p class="note" id="dsNote" style="margin:2px 0 0"></p>
     <div id="scatter" class="chart" style="height:430px"></div>
   </div>
 
@@ -140,7 +141,7 @@ async function load(){
   if(r.status===401) return gate();
   DATA=await r.json();
   $('fresh').textContent=DATA.meta.tender_count.toLocaleString()+' tenders · '+DATA.meta.award_count+' awards';
-  kpis(); draw(); renderTable();
+  kpis(); dsNote(); draw(); renderTable();
 }
 function gate(){ document.querySelector('.wrap').innerHTML='<div class="card"><h2>Sign in first</h2><p class="note">Open the dashboard, sign in, then return. This page shares that session.</p><a class="btn" href="/">Go to dashboard</a></div>'; }
 function kpis(){
@@ -151,9 +152,15 @@ function kpis(){
 }
 function rows(){ let d=DATA[DS].map(r=>Object.assign({_d:pdate(r.d)},r)).filter(r=>r._d);
   if($('scope').value==='opp') d=d.filter(r=>r.opp);
+  const today=new Date();
+  d=d.filter(r=>r._d<=today);            // no empty future months
   const p=$('period')?$('period').value:'12';
   if(p!=='all'){ const cut=new Date(); cut.setMonth(cut.getMonth()-parseInt(p)); d=d.filter(r=>r._d>=cut); }
   return d; }
+function xrange(d){ const ms=d.map(r=>r._d).sort((a,b)=>a-b); if(!ms.length) return null;
+  const lo=new Date(ms[0]); lo.setDate(1);
+  const hi=new Date(ms[ms.length-1]); hi.setMonth(hi.getMonth()+1,1);
+  return [lo.toISOString().slice(0,10), hi.toISOString().slice(0,10)]; }
 
 function drawScatter(){
   const dim=$('colorBy').value, yMode=$('yAxis').value;
@@ -167,7 +174,7 @@ function drawScatter(){
     text:groups[k].map(r=>`${r.buyer||''}<br>${r.title||''}`),
     hovertemplate:'%{text}<br>%{x|%b %Y}'+(yMode==='value'?'<br>%{y:,.0f} PKR':'')+'<extra>'+k+'</extra>',
     marker:{size:8,opacity:.72,color:PAL[i%PAL.length]}}));
-  const lay=L(); lay.xaxis=monthAxis();
+  const lay=L(); lay.xaxis=monthAxis(); { const rg=xrange(d); if(rg)lay.xaxis.range=rg; }
   if(yMode==='value'){ lay.yaxis.type='log'; lay.yaxis.title='Value (PKR, log)'; }
   else { lay.yaxis.showticklabels=false; }
   Plotly.react('scatter',traces,lay,CFG);
@@ -178,24 +185,26 @@ function drawVolume(){
   d.forEach(r=>{const k=mkey(r._d); (b[k]=b[k]||{})[r.lane]=(b[k][r.lane]||0)+1;});
   const months=Object.keys(b).sort(), x=months.map(m=>m+'-01');
   const traces=lanes.map((ln,i)=>({type:'bar',name:ln==='None'?'Other':ln,x:x,y:months.map(m=>b[m][ln]||0),marker:{color:PAL[i%PAL.length]}}));
-  const lay=L(); lay.barmode='stack'; lay.xaxis=monthAxis(); Plotly.react('volume',traces,lay,CFG);
+  const lay=L(); lay.barmode='stack'; lay.xaxis=monthAxis(); { const rg=xrange(d); if(rg)lay.xaxis.range=rg; } Plotly.react('volume',traces,lay,CFG);
 }
 function drawMomentum(){
   const d=rows();
-  const cnt={}; d.forEach(r=>{const c=r.cat||'Unclassified'; cnt[c]=(cnt[c]||0)+1;});
+  const cnt={}; d.forEach(r=>{const c=r.cat; if(!c||c==='Unclassified'||c==='None')return; cnt[c]=(cnt[c]||0)+1;});
   const top=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).slice(0,6);
   const months=[...new Set(d.map(r=>mkey(r._d)))].sort();
   const traces=top.map((c,i)=>({type:'scatter',mode:'lines+markers',name:c.length>22?c.slice(0,21)+'…':c,
     x:months.map(m=>m+'-01'),
     y:months.map(m=>d.filter(r=>(r.cat||'Unclassified')===c && mkey(r._d)===m).length),
     line:{color:PAL[i%PAL.length],width:2.4},marker:{size:5}}));
-  const lay=L(); lay.xaxis=monthAxis(); Plotly.react('momentum',traces,lay,CFG);
+  const lay=L(); lay.xaxis=monthAxis(); { const rg=xrange(d); if(rg)lay.xaxis.range=rg; } Plotly.react('momentum',traces,lay,CFG);
 }
 function drawCats(){
-  const p=(DATA.meta.by_category||[]).slice(0,10).reverse();
-  const lay=L(); lay.margin={l:170,r:16,t:8,b:34};
+  const p=(DATA.meta.by_category||[]).filter(z=>z[0] && z[0]!=='Unclassified' && z[0]!=='None').slice(0,10).reverse();
+  const lay=L(); lay.margin={l:185,r:52,t:8,b:34};
   Plotly.react('cats',[{type:'bar',orientation:'h',x:p.map(z=>z[1]),
-    y:p.map(z=>String(z[0]||'Unclassified').length>26?String(z[0]).slice(0,25)+'…':(z[0]||'Unclassified')),marker:{color:'#0f5c6b'}}],lay,CFG);
+    y:p.map(z=>String(z[0]).length>28?String(z[0]).slice(0,27)+'…':String(z[0])),
+    text:p.map(z=>z[1]), textposition:'outside', textfont:{size:11,color:'#475569'}, cliponaxis:false,
+    marker:{color:'#0f5c6b'}}],lay,CFG);
 }
 function draw(){ drawScatter(); drawVolume(); drawMomentum(); drawCats(); }
 
@@ -211,9 +220,13 @@ function renderTable(){
   $('tbl').innerHTML=head+'<tbody>'+body+'</tbody>';
 }
 
+function dsNote(){ const n=$('dsNote'); if(!n) return;
+  n.textContent = DS==='awards'
+    ? 'Awards are captured from published contract awards. The winning bidder is named only where the notice discloses it, so bidder coverage is partial and growing as sources deepen.'
+    : ''; }
 document.querySelectorAll('#dsSeg button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#dsSeg button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); DS=b.dataset.ds;
-  $('colorBy').value=DS==='awards'?'winner':'cat'; draw(); renderTable();
+  $('colorBy').value=DS==='awards'?'winner':'cat'; dsNote(); draw(); renderTable();
 });
 ['colorBy','yAxis','scope','period'].forEach(id=>$(id).addEventListener('change',()=>{draw();renderTable();}));
 

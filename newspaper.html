@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tender Desk · Newspaper extraction</title>
+<style>
+  :root{--bg:#f6f7f9;--panel:#fff;--ink:#0f172a;--ink-2:#475569;--ink-3:#94a3b8;
+    --line:#e8ebf0;--brand:#0f5c6b;--brand-2:#12a3b8;--amber:#e8912d;--good:#0f7a5a;
+    --shadow:0 1px 2px rgba(15,23,42,.04),0 10px 30px rgba(15,23,42,.06);--r:16px;}
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .bar{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.85);backdrop-filter:saturate(1.4) blur(8px);border-bottom:1px solid var(--line)}
+  .bar .in{max-width:1180px;margin:0 auto;padding:13px 26px;display:flex;align-items:center;gap:14px}
+  .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--brand-2));display:grid;place-items:center;color:#fff;font-weight:800}
+  .bar b{font-size:15px} .bar .tag{font-size:12px;color:var(--ink-3);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+  .bar .sp{flex:1} .bar a{font-size:13px;color:var(--brand);text-decoration:none;font-weight:600;padding:7px 13px;border:1px solid var(--line);border-radius:9px}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 26px 70px}
+  h1{font-size:24px;letter-spacing:-.025em;margin:0}
+  .sub{color:var(--ink-3);font-size:13px;margin:5px 0 22px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:20px 22px;margin-bottom:18px}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  select,button,textarea{font-family:inherit}
+  select{border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:13px;color:var(--ink);min-width:210px;background:#fff}
+  .btn{background:var(--brand);color:#fff;border:0;border-radius:10px;padding:9px 17px;font-size:13px;font-weight:650;cursor:pointer}
+  .btn:hover{background:#0c4d59}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+  .lab{font-size:11px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:9px}
+  textarea{width:100%;min-height:210px;border:1px solid var(--line);border-radius:12px;padding:14px;font-size:13px;line-height:1.55;color:var(--ink-2);resize:vertical;background:#fcfdfe}
+  .paper{background:#fbfaf7;border:1px solid #ece7dd;border-radius:12px;padding:16px 18px;font-family:"Georgia","Times New Roman",serif;font-size:13.5px;line-height:1.6;color:#2b2b28;white-space:pre-wrap;min-height:210px}
+  .ext{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .ext .row{display:flex;border-bottom:1px solid #f1f4f7}
+  .ext .row:last-child{border-bottom:0}
+  .ext .k{width:120px;flex:none;background:#f7f9fa;padding:11px 14px;font-size:11px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+  .ext .v{padding:11px 14px;font-size:13.5px;color:var(--ink);flex:1}
+  .pill{display:inline-block;padding:3px 11px;border-radius:999px;font-size:12px;font-weight:700}
+  .p-op{background:#e3f4ee;color:var(--good)} .p-no{background:#f1f5f9;color:#64748b}
+  .lane{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:700;margin-left:6px}
+  .l-Core{background:#e0f2f1;color:#0f5c6b}.l-Partnerled{background:#fff3e0;color:#b26a00}
+  .l-Signal{background:#eef2ff;color:#4338ca}.l-None{background:#f1f5f9;color:#64748b}
+  .muted{color:var(--ink-3);font-size:12.5px}
+  .arrow{display:grid;place-items:center;color:var(--brand-2);font-weight:800;font-size:22px}
+  .note{font-size:12.5px;color:var(--ink-3);margin-top:2px}
+</style>
+</head>
+<body>
+<div class="bar"><div class="in">
+  <div class="logo">T</div><b>Tender Desk</b><span class="tag">Newspaper extraction</span>
+  <span class="sp"></span><a href="/">Back to dashboard</a>
+</div></div>
+
+<div class="wrap">
+  <h1>Newspaper extraction</h1>
+  <p class="sub">A tender printed in a newspaper is unstructured text. This shows the pipeline reading one and turning it into a classified, structured opportunity. Pick a sample, or paste a real notice.</p>
+
+  <div class="card">
+    <div class="controls">
+      <select id="sample"></select>
+      <button class="btn" onclick="runSample()">Load sample</button>
+      <span class="sp" style="flex:1"></span>
+      <button class="btn" onclick="extract()">Extract</button>
+    </div>
+    <div class="grid">
+      <div>
+        <div class="lab">The notice, as printed</div>
+        <textarea id="raw" placeholder="Paste a newspaper tender notice here, or load a sample above…"></textarea>
+      </div>
+      <div>
+        <div class="lab">What the pipeline extracts</div>
+        <div id="out"><div class="paper muted" style="display:grid;place-items:center;font-family:inherit">Load a sample or paste a notice, then press Extract.</div></div>
+      </div>
+    </div>
+    <p class="note">The extraction and classification here are the real pipeline, the same one that runs on a scanned page. Only the input is a curated sample instead of a live download.</p>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+async function loadSamples(){
+  let r; try{ r=await fetch('/api/newspaper-samples'); }catch(e){ return gate(); }
+  if(r.status===401) return gate();
+  const j=await r.json();
+  $('sample').innerHTML=j.samples.map(s=>`<option value="${s.id}">${s.label}</option>`).join('');
+}
+function gate(){ document.querySelector('.wrap').innerHTML='<div class="card"><b>Sign in first</b><p class="note">Open the dashboard, sign in, then return. This page shares that session.</p><a class="btn" href="/">Go to dashboard</a></div>'; }
+async function runSample(){
+  const id=$('sample').value;
+  const r=await fetch('/api/newspaper-extract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sample:id})});
+  const j=await r.json(); if(!j.ok) return;
+  $('raw').value=j.raw; render(j.rows);
+}
+async function extract(){
+  const text=$('raw').value.trim(); if(!text) return;
+  $('out').innerHTML='<div class="paper muted" style="display:grid;place-items:center;font-family:inherit">Reading…</div>';
+  const r=await fetch('/api/newspaper-extract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+  const j=await r.json(); if(!j.ok){ $('out').innerHTML='<div class="paper muted">'+(j.error||'Could not extract.')+'</div>'; return; }
+  render(j.rows);
+}
+function render(rows){
+  $('out').innerHTML = rows.map(r=>{
+    const lane=(r.lane||'None').replace('-','');
+    const opp = r.is_opportunity
+      ? '<span class="pill p-op">Jazz opportunity</span>'
+      : (r.lane==='Signal' ? '<span class="pill p-no">Watch</span>' : '<span class="pill p-no">Not relevant</span>');
+    const row=(k,v)=> v ? `<div class="row"><div class="k">${k}</div><div class="v">${v}</div></div>` : '';
+    return `<div class="ext" style="margin-bottom:12px">
+      ${row('Buyer', r.buyer)}
+      ${row('Scope', r.title)}
+      ${row('Closing', r.closing||'—')}
+      ${row('Reference', r.ref)}
+      ${row('Value', r.value_text)}
+      <div class="row"><div class="k">Classified</div><div class="v">${opp}<span class="lane l-${lane}">${r.lane}${r.product_line?' · '+r.product_line:''}</span></div></div>
+    </div>`;
+  }).join('');
+}
+loadSamples();
+</script>
+</body>
+</html>

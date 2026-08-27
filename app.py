@@ -464,6 +464,85 @@ async def api_np_fetch(request: Request):
     return {"ok": True, "started": "fetch"}
 
 
+# Sample notices for the proof-of-concept view. Real Pakistani-style tender
+# adverts, so the demo shows the actual parser and classifier at work rather
+# than a mockup. The pipeline that runs on these is the same one that runs on a
+# scanned page.
+_NP_SAMPLES = {
+    "ict": ("PITB — IT procurement",
+        "PUNJAB INFORMATION TECHNOLOGY BOARD\nTENDER NOTICE\n"
+        "Sealed bids are invited from eligible firms for the Supply, Installation "
+        "and Commissioning of SD-WAN Enabled Next Generation Firewalls and Layer-2 "
+        "Switches for the Punjab Government Data Centre.\n"
+        "Tender No. PITB/IT/2026/114. Estimated cost Rs. 45 million.\n"
+        "Bid security 2%. Last date for submission: 12-09-2026 at 11:00 AM."),
+    "connectivity": ("PAA — connectivity",
+        "PAKISTAN AIRPORTS AUTHORITY\nINVITATION FOR BIDS\n"
+        "Provision of Internet Connectivity and MPLS Services at Jinnah "
+        "International Airport, Karachi, for a period of three years.\n"
+        "Reference PAA-IT-88. Single Stage Two Envelope. "
+        "Closing date: 05-09-2026 at 03:00 PM."),
+    "software": ("NADRA — systems",
+        "NATIONAL DATABASE & REGISTRATION AUTHORITY\nNOTICE INVITING TENDER\n"
+        "Procurement of an Enterprise Document Management System with licensing, "
+        "support and integration with existing infrastructure.\n"
+        "Tender ID NADRA-HQ-DMS-31. Bid security Rs. 500,000. "
+        "Submission by 28-08-2026."),
+    "civil": ("C&W — civil works",
+        "COMMUNICATION & WORKS DEPARTMENT\nTENDER NOTICE\n"
+        "Construction of a boundary wall and allied civil works at the district "
+        "complex. Estimated cost Rs. 18 million. Bid security 2%. "
+        "Last date 09-09-2026. (Included to show what the filter correctly drops.)"),
+}
+
+
+@app.get("/api/newspaper-samples")
+def api_np_samples(request: Request):
+    require(request)
+    return {"samples": [{"id": k, "label": v[0]} for k, v in _NP_SAMPLES.items()]}
+
+
+@app.post("/api/newspaper-extract")
+async def api_np_extract(request: Request):
+    require(request)
+    body = await request.json()
+    text = (body.get("text") or "").strip()
+    sample = body.get("sample")
+    if sample and sample in _NP_SAMPLES:
+        text = _NP_SAMPLES[sample][1]
+    if not text:
+        return {"ok": False, "error": "Paste a notice or pick a sample."}
+    import newspaper, classify
+    rows = []
+    for b in newspaper.blocks(text):
+        r = newspaper.parse_block(b, "Sample", 1)
+        if not r:
+            continue
+        c = classify.classify(r.get("title", ""), "", r.get("buyer", ""))
+        rows.append({
+            "buyer": r.get("buyer", ""), "title": r.get("title", ""),
+            "closing": r.get("closing"), "ref": r.get("ref", ""),
+            "value_text": r.get("value_text", ""),
+            "lane": c["lane"], "product_line": c.get("product_line", ""),
+            "is_opportunity": c["is_opportunity"], "why": c.get("why", ""),
+        })
+    # if the block splitter found nothing, still classify the whole text so the
+    # demo always shows a result
+    if not rows:
+        c = classify.classify(text[:200], "", "")
+        rows.append({"buyer": "", "title": text[:120], "closing": None, "ref": "",
+                     "lane": c["lane"], "product_line": c.get("product_line", ""),
+                     "is_opportunity": c["is_opportunity"], "why": c.get("why", "")})
+    return {"ok": True, "raw": text, "rows": rows}
+
+
+@app.get("/newspaper", response_class=HTMLResponse)
+def newspaper_page():
+    pth = os.path.join(os.path.dirname(os.path.abspath(__file__)), "newspaper.html")
+    with open(pth, encoding="utf-8") as f:
+        return f.read()
+
+
 @app.get("/api/newspaper-status")
 def api_np_status(request: Request):
     require(request)
@@ -929,11 +1008,11 @@ def api_analytics(request: Request, limit: int = 4000):
     out = {"tenders": [], "awards": []}
     with db.conn(readonly=True) as c:
         for r in c.execute(f"""
-            SELECT COALESCE(advertised, closing, first_seen) d, value_num v,
+            SELECT COALESCE(advertised, first_seen, closing) d, value_num v,
                    product_line cat, lane, buyer, source, is_opportunity opp,
                    substr(title,1,90) title
             FROM tenders
-            WHERE dup_of IS NULL AND COALESCE(advertised, closing, first_seen) IS NOT NULL
+            WHERE dup_of IS NULL AND COALESCE(advertised, first_seen, closing) IS NOT NULL
             ORDER BY d DESC LIMIT ?""", (limit,)):
             out["tenders"].append(dict(r))
         for r in c.execute(f"""
@@ -953,12 +1032,14 @@ def api_analytics(request: Request, limit: int = 4000):
             a["value"] += r.get("v") or 0
         return sorted(([k, x["n"], round(x["value"])] for k, x in agg.items()),
                       key=lambda z: z[1], reverse=True)
+    classified = [r for r in out["tenders"] if (r.get("cat") or "").strip()]
     out["meta"] = {
         "tender_count": len(out["tenders"]),
+        "classified_count": len(classified),
         "award_count": len(out["awards"]),
-        "by_category": rollup(out["tenders"], "cat")[:12],
+        "by_category": rollup(classified, "cat")[:10],
         "by_lane": rollup(out["tenders"], "lane"),
-        "top_buyers": rollup(out["tenders"], "buyer")[:12],
+        "top_buyers": rollup(out["tenders"], "buyer")[:10],
         "award_value": round(sum(r.get("v") or 0 for r in out["awards"])),
     }
     return out
