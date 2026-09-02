@@ -116,7 +116,11 @@ a{color:inherit;text-decoration:none}
 .isnew{font-size:9px;font-weight:700;letter-spacing:.06em;background:var(--mint);color:#04231F;padding:2px 5px;border-radius:2px}
 .ttitle{font-family:'Inter Tight';font-weight:600;font-size:14.5px;line-height:1.4;margin-bottom:4px;letter-spacing:-.012em}
 .torg{font-size:12.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tside{padding:12px 14px;border-left:1px solid var(--line-2);background:var(--surface-2);display:flex;flex-direction:column;justify-content:center;gap:6px}
+.tside{padding:12px 14px;border-left:1px solid var(--line-2);background:var(--surface-2);display:flex;flex-direction:column;justify-content:center;gap:6px;position:relative}
+.aibrief{position:absolute;top:8px;right:10px;border:1px solid var(--line-2);background:var(--surface);border-radius:6px;cursor:pointer;font-size:12px;padding:2px 6px;line-height:1;color:#12a3b8;z-index:2}
+.aibrief:hover{background:#eefbfc;border-color:#12a3b8}
+.aibriefmodal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:200;align-items:center;justify-content:center}
+.aibriefmodal .aibm-card{background:#fff;color:#16323a;max-width:520px;margin:0 20px;border-radius:14px;padding:22px 24px;box-shadow:0 24px 70px rgba(0,0,0,.3);font-size:14px}
 .val{font-family:'JetBrains Mono';font-weight:600;font-size:12.5px}
 .val small{font-weight:400;color:var(--ink-3);font-size:9.5px;display:block;letter-spacing:.08em;text-transform:uppercase}
 .gauge .lbl{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-3);margin-bottom:3px}
@@ -472,7 +476,7 @@ async function doLogin(){
 }
 $('#pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 
-const TAB_DEF=['brief','feed','intel','papers','overview','contacts','reconcile','ask','filler','method'];
+const TAB_DEF=['brief','feed','intel','papers','overview','contacts','reconcile','filler','method'];
 function tabOrder(){
   let o=[]; try{o=JSON.parse(localStorage.getItem('td_taborder')||'[]')}catch(e){}
   o=o.filter(x=>TAB_DEF.includes(x));
@@ -480,7 +484,7 @@ function tabOrder(){
 }
 function saveTabOrder(o){try{localStorage.setItem('td_taborder',JSON.stringify(o))}catch(e){}}
 const TAB_LABEL={brief:'Brief',feed:'Feed',intel:'Analytics',papers:'Newspapers',overview:'Overview',contacts:'Contacts',
-  reconcile:'Reconcile',ask:'Ask',filler:'Bid filler',method:'Methodology'};
+  reconcile:'Reconcile',filler:'Bid filler',method:'Methodology'};
 function dragTabs(){
   let src=null;
   document.querySelectorAll('#tabs .tab[data-k]').forEach(el=>{
@@ -596,6 +600,7 @@ function rowHTML(r){
       <div class="torg">${esc(r.buyer||'—')}</div>
     </div>
     <div class="tside">
+      <button class="aibrief" onclick="event.stopPropagation();feedBrief('${esc(r.uid)}')" title="AI brief">✨</button>
       <div class="val"><small>Value</small>${money(r)}</div>
       <div class="gauge ${urg(dl)}"><div class="lbl">Closes <b>${dl==null?'—':dl<0?'closed':dl+'d'}</b></div><div class="bar"><i style="width:${pct}%"></i></div></div>
     </div>
@@ -626,6 +631,28 @@ async function loadFeed(append){
   $('#moreBtn').textContent=`Load more (${TOTAL-OFFSET} remaining)`;
 }
 function loadMore(){loadFeed(true)}
+
+function _aiKeyUI(){ try{return localStorage.getItem('td_akey')||''}catch(e){return ''} }
+async function feedBrief(uid){
+  let box=document.getElementById('aiBriefModal');
+  if(!box){ box=document.createElement('div'); box.id='aiBriefModal'; box.className='aibriefmodal';
+    box.onclick=e=>{if(e.target===box)box.style.display='none'}; document.body.appendChild(box); }
+  box.style.display='flex';
+  if(!_aiKeyUI()){ box.innerHTML='<div class="aibm-card">Add your Anthropic API key on the Analytics tab to switch on AI briefs.<br><br><button class="btn" onclick="document.getElementById(\'aiBriefModal\').style.display=\'none\'">Close</button></div>'; return; }
+  box.innerHTML='<div class="aibm-card"><span style="color:#8a99a0">Writing brief\u2026</span></div>';
+  let t; try{ t=await api('/api/tender/'+encodeURIComponent(uid)); }catch(e){ box.innerHTML='<div class="aibm-card">Could not load that tender.</div>'; return; }
+  const focus='Tender: '+JSON.stringify({title:t.title,buyer:t.buyer,lane:t.lane,category:t.product_line,value:t.value_text,closing:t.closing,source:t.source});
+  let j; try{
+    const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'brief',focus,question:'brief',api_key:_aiKeyUI()})});
+    j=await r.json();
+  }catch(e){ box.innerHTML='<div class="aibm-card">Could not reach the model.</div>'; return; }
+  box.innerHTML='<div class="aibm-card"><div style="font-size:10px;font-weight:800;letter-spacing:1px;color:#12a3b8">AI TENDER BRIEF</div>'
+    +'<b style="display:block;margin:6px 0 8px">'+(t.title||'Tender')+'</b>'
+    +'<p style="margin:0;line-height:1.6">'+((j.answer||'No brief.').replace(/\n/g,'<br>'))+'</p>'
+    +'<div style="font-size:12px;color:#8a99a0;margin-top:10px">'+(t.buyer||'')+' \u00b7 '+(t.lane||'')+'</div>'
+    +'<div style="margin-top:14px;display:flex;gap:8px"><button class="btn" onclick="openTender(\''+esc(uid)+'\');document.getElementById(\'aiBriefModal\').style.display=\'none\'">Open tender</button>'
+    +'<button class="btn ghost" onclick="document.getElementById(\'aiBriefModal\').style.display=\'none\'">Close</button></div></div>';
+}
 
 async function openTender(uid){
   const id=safeId(uid);

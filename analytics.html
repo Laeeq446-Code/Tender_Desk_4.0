@@ -95,6 +95,11 @@
       <button class="btn" onclick="ask()">Ask</button>
     </div>
     <div id="brief" class="muted" style="margin-top:6px"></div>
+    <div id="keyRow" style="margin-top:10px;display:none;align-items:center;gap:8px;flex-wrap:wrap">
+      <input class="srch" id="keyInput" type="password" placeholder="Paste Anthropic API key (sk-ant-…)" style="min-width:320px">
+      <button class="btn ghost" onclick="saveKey()">Save key</button>
+      <span class="muted">Stored only in this browser. Powers every AI feature here.</span>
+    </div>
     <div id="askOut"></div>
   </div>
 
@@ -118,6 +123,18 @@
   </div>
 
   <div class="card" style="margin-top:18px"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>Demand by category</h2><p class="note">Where the opportunities concentrate.</p></div><button class="btn ghost" style="max-width:110px;padding:6px 10px;font-size:12px" onclick="explainChart('cats')">✨ Explain</button></div><div id="cats" class="chart" style="height:300px"></div><div id="exp-cats" class="aiexp"></div></div>
+
+  <div class="card" style="margin-top:18px">
+    <div><h2>Build your own chart</h2><p class="note">Pick what to plot. Beyond asking — compose any view of the live data.</p></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:6px 0 4px">
+      <label class="fld">Chart<select id="cbType"><option value="bar">Bar</option><option value="line">Line</option><option value="scatter">Scatter</option></select></label>
+      <label class="fld">X axis<select id="cbX"><option value="month">Month</option><option value="cat">Category</option><option value="lane">Jazz lane</option><option value="buyer">Buyer</option><option value="source">Source</option></select></label>
+      <label class="fld">Measure<select id="cbY"><option value="count">Count of tenders</option><option value="value">Sum of value</option></select></label>
+      <label class="fld">Split by<select id="cbSplit"><option value="">None</option><option value="lane">Jazz lane</option><option value="cat">Category</option><option value="source">Source</option></select></label>
+      <button class="btn" style="max-width:130px" onclick="buildChart()">Build chart</button>
+    </div>
+    <div id="customChart" class="chart" style="height:360px"></div>
+  </div>
 
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
@@ -147,12 +164,16 @@ const PAL=['#0f5c6b','#f59e0b','#2563eb','#059669','#db2777','#7c3aed','#0891b2'
 let DATA=null, DS='tenders';
 const $=id=>document.getElementById(id);
 const money=v=>!v?'—':v>=1e9?'PKR '+(v/1e9).toFixed(2)+'B':v>=1e6?'PKR '+(v/1e6).toFixed(1)+'M':'PKR '+Math.round(v).toLocaleString();
-function pdate(s){ if(!s) return null; s=String(s).slice(0,10); const d=new Date(s+'T00:00:00'); return isNaN(d.getTime())?null:d; }
+function pdate(s){ if(!s) return null; s=String(s).slice(0,10); const d=new Date(s+'T00:00:00');
+  if(isNaN(d.getTime())) return null;
+  const y=d.getFullYear(); if(y<2023 || y>new Date().getFullYear()+1) return null;  // reject stray dates
+  return d; }
 function mkey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
 const BASE={font:{family:'Inter,system-ui,sans-serif',size:12,color:'#475569'},paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',
   margin:{l:58,r:16,t:8,b:44},xaxis:{gridcolor:'#eef2f5',zeroline:false},yaxis:{gridcolor:'#eef2f5',zeroline:false},legend:{font:{size:11}}};
 const CFG={displayModeBar:false,responsive:true};
-const monthAxis=()=>({type:'date',tickformat:'%b %Y',dtick:'M1',gridcolor:'#eef2f5',zeroline:false,tickangle:-30});
+const monthAxis=()=>({type:'date',tickformat:'%b %Y',dtick:'M1',gridcolor:'#eef2f5',zeroline:false,
+  tickangle:0,tickfont:{family:'Inter,system-ui,sans-serif',size:11,color:'#5e7178'},automargin:true});
 const L=()=>JSON.parse(JSON.stringify(BASE));
 
 async function load(){
@@ -160,7 +181,7 @@ async function load(){
   if(r.status===401) return gate();
   DATA=await r.json();
   $('fresh').textContent=DATA.meta.tender_count.toLocaleString()+' tenders · '+DATA.meta.award_count+' awards';
-  kpis(); dsNote(); draw(); renderTable(); loadBrief();
+  kpis(); dsNote(); draw(); renderTable(); keyGate(); buildChart(); loadBrief();
 }
 function gate(){ document.querySelector('.wrap').innerHTML='<div class="card"><h2>Sign in first</h2><p class="note">Open the dashboard, sign in, then return. This page shares that session.</p><a class="btn" href="/">Go to dashboard</a></div>'; }
 function kpis(){
@@ -279,6 +300,37 @@ async function ask(){
   }catch(e){ $('askOut').textContent='Could not reach the model.'; }
 }
 function aiKey(){ try{return localStorage.getItem('td_akey')||''}catch(e){return ''} }
+function saveKey(){ const v=($('keyInput').value||'').trim(); if(!v) return;
+  try{localStorage.setItem('td_akey',v)}catch(e){}
+  $('keyInput').value=''; $('keyRow').style.display='none'; loadBrief(); }
+function keyGate(){ const has=!!aiKey(); const kr=$('keyRow'); if(kr) kr.style.display= has?'none':'flex'; return has; }
+
+function buildChart(){
+  const type=$('cbType').value, xdim=$('cbX').value, ymode=$('cbY').value, split=$('cbSplit').value;
+  const d=rows();
+  const val=r=> ymode==='value' ? (r.v||0) : 1;
+  const keyOf=(r,dim)=> dim==='month' ? mkey(r._d) : (dim==='buyer'?(r.buyer||'Unknown'):(r[dim]||'Unclassified'));
+  // aggregate: xkey -> splitkey -> measure
+  const agg={}, splits=new Set();
+  d.forEach(r=>{ const xk=keyOf(r,xdim); const sk=split?keyOf(r,split):'All'; splits.add(sk);
+    agg[xk]=agg[xk]||{}; agg[xk][sk]=(agg[xk][sk]||0)+val(r); });
+  let xs=Object.keys(agg);
+  if(xdim==='month') xs.sort(); else xs.sort((a,b)=> (Object.values(agg[b]).reduce((s,v)=>s+v,0)) - (Object.values(agg[a]).reduce((s,v)=>s+v,0)));
+  if(xdim!=='month') xs=xs.slice(0,14);
+  const sList=[...splits].slice(0,10);
+  const xvals = xdim==='month' ? xs.map(m=>m+'-01') : xs;
+  const traces=sList.map((sk,i)=>({
+    type: type==='scatter'?'scatter':type, mode: type==='line'?'lines+markers':(type==='scatter'?'markers':undefined),
+    name: sk.length>22?sk.slice(0,21)+'…':sk,
+    x: xvals, y: xs.map(xk=>agg[xk][sk]||0),
+    marker:{color:PAL[i%PAL.length]}, line:{color:PAL[i%PAL.length],width:2.4}
+  }));
+  const lay=L(); if(split) lay.barmode='stack';
+  if(xdim==='month'){ lay.xaxis=monthAxis(); } else { lay.xaxis={tickangle: xs.some(x=>x.length>10)?-25:0, tickfont:{size:11,color:'#5e7178'}, automargin:true, gridcolor:'#eef2f5'}; }
+  lay.yaxis.title = ymode==='value' ? 'Value (PKR)' : 'Tenders';
+  if(!split) lay.showlegend=false;
+  Plotly.react('customChart',traces,lay,CFG);
+}
 async function aiCall(payload){
   const key=aiKey(); if(!key) return {answer:''};
   const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({api_key:key},payload))});
@@ -286,7 +338,7 @@ async function aiCall(payload){
 }
 async function loadBrief(){
   const b=$('brief'); if(!b) return;
-  if(!aiKey()){ b.innerHTML='Set your Anthropic API key on the dashboard\u2019s Ask tab to switch on the AI briefing, chart explanations and language filtering.'; return; }
+  if(!aiKey()){ b.innerHTML='Add your Anthropic API key below to switch on the AI briefing, chart explanations, briefs and language filtering.'; keyGate(); return; }
   b.textContent='Generating this week\u2019s briefing\u2026';
   const m=DATA.meta;
   const focus='Snapshot: '+m.tender_count+' tenders, '+DATA.tenders.filter(t=>t.opp).length+' Jazz opportunities. '
