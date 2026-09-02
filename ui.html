@@ -121,6 +121,9 @@ a{color:inherit;text-decoration:none}
 .aibrief:hover{background:#eefbfc;border-color:#12a3b8}
 .aibriefmodal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:200;align-items:center;justify-content:center}
 .aibriefmodal .aibm-card{background:#fff;color:#16323a;max-width:520px;margin:0 20px;border-radius:14px;padding:22px 24px;box-shadow:0 24px 70px rgba(0,0,0,.3);font-size:14px}
+.aidaily{margin:12px 0}
+.aidaily-box{background:linear-gradient(180deg,#eefbfc,#fff);border:1px solid #12a3b8;border-radius:10px;padding:12px 14px;font-size:13.5px;line-height:1.6;color:#16323a}
+.aidaily-tag{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:1.2px;color:#0f5c6b;margin-right:8px}
 .val{font-family:'JetBrains Mono';font-weight:600;font-size:12.5px}
 .val small{font-weight:400;color:var(--ink-3);font-size:9.5px;display:block;letter-spacing:.08em;text-transform:uppercase}
 .gauge .lbl{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-3);margin-bottom:3px}
@@ -381,15 +384,19 @@ a{color:inherit;text-decoration:none}
   <div id="recOut"></div>
 </div></main>
 
-<main class="panel" id="p-ask"><div class="wrap" style="max-width:860px">
-  <div class="lhead"><div><h2>Ask the data</h2><p>Questions are answered by Claude, grounded in the live tender database. Your API key stays in this browser only.</p></div></div>
-  <div class="card" style="padding:16px">
-    <div style="display:flex;gap:8px;margin-bottom:9px;align-items:center"><input class="srch" id="akey" type="text" autocomplete="off" name="tdkey" placeholder="Anthropic API key" style="flex:1"><span id="keyState" style="font-size:11.5px;color:var(--ink-3);white-space:nowrap"></span><button class="iconbtn" onclick="clearKey()">Forget</button></div>
-    <div style="display:flex;gap:8px">
-      <input class="srch" id="aq" placeholder="e.g. Which Core tenders close this week?" style="flex:1" onkeydown="if(event.key==='Enter')doAsk()">
-      <button class="btn" style="width:110px" onclick="doAsk()">Ask</button>
+<main class="panel" id="p-settings"><div class="wrap" style="max-width:760px">
+  <div class="lhead"><div><h2>API key</h2><p>Connect Anthropic once to power the AI features across the Brief, the Feed, and Analytics. Your key stays in this browser only and is never stored on our servers.</p></div></div>
+  <div class="card" style="padding:18px">
+    <label style="font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3)">Anthropic API key</label>
+    <div style="display:flex;gap:8px;margin:8px 0 6px;align-items:center">
+      <input class="srch" id="akey" type="password" autocomplete="off" name="tdkey" placeholder="sk-ant-…" style="flex:1">
+      <button class="btn" style="width:90px" onclick="saveKeyUI()">Save</button>
+      <button class="iconbtn" onclick="clearKey()">Forget</button>
     </div>
-    <div id="aout" style="margin-top:14px;font-size:14px;line-height:1.65;color:var(--ink-2);white-space:pre-wrap"></div>
+    <span id="keyState" style="font-size:12px;color:var(--ink-3)"></span>
+    <div style="margin-top:16px;font-size:12.5px;color:var(--ink-3);line-height:1.75">
+      This one key powers the daily brief's AI summary, the AI analyst on the Analytics tab (ask, explain, and language filtering), and the per-tender AI briefs in the feed. Get a key from console.anthropic.com. Usage is billed per question, roughly one cent each.
+    </div>
   </div>
 </div></main>
 
@@ -476,7 +483,7 @@ async function doLogin(){
 }
 $('#pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 
-const TAB_DEF=['brief','feed','intel','papers','overview','contacts','reconcile','filler','method'];
+const TAB_DEF=['brief','feed','intel','papers','overview','contacts','reconcile','filler','settings','method'];
 function tabOrder(){
   let o=[]; try{o=JSON.parse(localStorage.getItem('td_taborder')||'[]')}catch(e){}
   o=o.filter(x=>TAB_DEF.includes(x));
@@ -484,7 +491,7 @@ function tabOrder(){
 }
 function saveTabOrder(o){try{localStorage.setItem('td_taborder',JSON.stringify(o))}catch(e){}}
 const TAB_LABEL={brief:'Brief',feed:'Feed',intel:'Analytics',papers:'Newspapers',overview:'Overview',contacts:'Contacts',
-  reconcile:'Reconcile',filler:'Bid filler',method:'Methodology'};
+  reconcile:'Reconcile',filler:'Bid filler',settings:'API key',method:'Methodology'};
 function dragTabs(){
   let src=null;
   document.querySelectorAll('#tabs .tab[data-k]').forEach(el=>{
@@ -526,7 +533,7 @@ function go(p){
   if(p==='intel'){window.location.href='/analytics';return;}
   if(p==='news')loadNpFeed();
   if(p==='filler')loadFiller();
-  if(p==='ask')keyState();
+  if(p==='settings')keyState();
 }
 function closeTab(id){
   OPEN=OPEN.filter(x=>safeId(x.uid)!==id);
@@ -859,6 +866,7 @@ async function loadBrief(){
 
   $('#briefBody').innerHTML=
     `<div class="bhead">${esc(head)}${seenNote?`<span>${esc(seenNote)}</span>`:''}</div>
+     <div id="aiDaily" class="aidaily"></div>
      <div class="bhero">
        <div><span>Open opportunities</span><b>${s.open_opps||0}</b></div>
        <div><span>Core lane</span><b>${s.open_core||0}</b></div>
@@ -870,9 +878,22 @@ async function loadBrief(){
     sec('Closing within '+b.window.closing_days+' days',(b.closing||[]).length,closeHtml)+
     sec('Changed on the portal',(b.moved||[]).length,movedHtml)+
     `<p style="font-size:11.5px;color:var(--ink-3);margin-top:14px">Core and Partner-led lanes only. Full inventory is in the Feed tab.</p>`;
+  aiDailyBrief(b);
 }
 
-
+async function aiDailyBrief(b){
+  const el=document.getElementById('aiDaily'); if(!el) return;
+  if(!_aiKeyUI()){ el.innerHTML='<span class="muted" style="font-size:12px">Add your API key on the API key tab for an AI reading of today\u2019s brief.</span>'; return; }
+  el.innerHTML='<span class="muted" style="font-size:12px">Reading today\u2019s pipeline\u2026</span>';
+  const slim=(arr)=>(arr||[]).slice(0,12).map(r=>({title:r.title,buyer:r.buyer,lane:r.lane,line:r.product_line,fit:r.fit_score,days_left:r.days_left}));
+  const focus='New biddable: '+JSON.stringify(slim(b.new))+'. Closing soon: '+JSON.stringify(slim(b.closing))
+    +'. Portal changes: '+((b.moved||[]).length)+'. Open opportunities: '+((b.stats||{}).open_opps||0)+'.';
+  try{
+    const r=await api('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({mode:'summary',focus,question:'Brief the Jazz sales lead on today: what deserves attention first, why, and what to do next. Be specific about buyers and lanes.',api_key:_aiKeyUI()})});
+    el.innerHTML='<div class="aidaily-box"><span class="aidaily-tag">AI READING</span>'+((r.answer||'No reading.').replace(/\n/g,'<br>'))+'</div>';
+  }catch(e){ el.innerHTML=''; }
+}
 
 async function npRun(commit){
   const f=$('#npFile').files[0];
@@ -1413,6 +1434,7 @@ function keyState(){
   const inp=document.getElementById('akey');
   if(inp){inp.value=''; inp.placeholder=has?'Key saved. Type a new one to replace it.':'Anthropic API key'}
 }
+function saveKeyUI(){const el=document.getElementById('akey');const v=el?el.value.trim():'';if(!v){keyState();return;}try{localStorage.setItem('td_akey',v)}catch(e){}if(el)el.value='';keyState();}
 function clearKey(){try{localStorage.removeItem('td_akey')}catch(e){} keyState()}
 
 async function loadFiller(){

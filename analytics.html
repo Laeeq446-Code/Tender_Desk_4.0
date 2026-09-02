@@ -88,17 +88,13 @@
   <div class="card" style="border:1px solid var(--brand-2);background:linear-gradient(180deg,#eefbfc 0%,#ffffff 60%)">
     <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
       <span style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:#fff;background:linear-gradient(135deg,var(--brand),var(--brand-2));border-radius:6px;padding:4px 9px">AI ANALYST</span>
-      <h2 style="margin:0">Ask the data, or let it brief you</h2>
+      <h2 style="margin:0">Your data, in plain language</h2>
     </div>
-    <div class="askrow" style="margin:12px 0 4px">
+    <div id="brief" class="muted" style="margin-top:9px"></div>
+    <div class="askrow" style="margin:13px 0 4px">
       <input class="srch" id="askQ" style="min-width:auto" placeholder="Ask anything — why is Managed Security rising, compare buyers by value, what should Jazz watch this week">
       <button class="btn" onclick="ask()">Ask</button>
-    </div>
-    <div id="brief" class="muted" style="margin-top:6px"></div>
-    <div id="keyRow" style="margin-top:10px;display:none;align-items:center;gap:8px;flex-wrap:wrap">
-      <input class="srch" id="keyInput" type="password" placeholder="Paste Anthropic API key (sk-ant-…)" style="min-width:320px">
-      <button class="btn ghost" onclick="saveKey()">Save key</button>
-      <span class="muted">Stored only in this browser. Powers every AI feature here.</span>
+      <button class="btn ghost" onclick="explainView()">Explain this view</button>
     </div>
     <div id="askOut"></div>
   </div>
@@ -119,10 +115,10 @@
 
   <div class="grid2">
     <div class="card"><h2>Volume by month</h2><p class="note">Tender flow per month, split by Jazz lane.</p><div id="volume" class="chart" style="height:300px"></div></div>
-    <div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>Category momentum</h2><p class="note">Tenders per month for the leading categories. Rising lines mean growing demand.</p></div><button class="btn ghost" style="max-width:110px;padding:6px 10px;font-size:12px" onclick="explainChart('momentum')">✨ Explain</button></div><div id="momentum" class="chart" style="height:300px"></div><div id="exp-momentum" class="aiexp"></div></div>
+    <div class="card"><h2>Category momentum</h2><p class="note">Tenders per month for the leading categories. Rising lines mean growing demand.</p><div id="momentum" class="chart" style="height:300px"></div></div>
   </div>
 
-  <div class="card" style="margin-top:18px"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>Demand by category</h2><p class="note">Where the opportunities concentrate.</p></div><button class="btn ghost" style="max-width:110px;padding:6px 10px;font-size:12px" onclick="explainChart('cats')">✨ Explain</button></div><div id="cats" class="chart" style="height:300px"></div><div id="exp-cats" class="aiexp"></div></div>
+  <div class="card" style="margin-top:18px"><h2>Demand by category</h2><p class="note">Where the opportunities concentrate.</p><div id="cats" class="chart" style="height:300px"></div></div>
 
   <div class="card" style="margin-top:18px">
     <div><h2>Build your own chart</h2><p class="note">Pick what to plot. Beyond asking — compose any view of the live data.</p></div>
@@ -181,7 +177,7 @@ async function load(){
   if(r.status===401) return gate();
   DATA=await r.json();
   $('fresh').textContent=DATA.meta.tender_count.toLocaleString()+' tenders · '+DATA.meta.award_count+' awards';
-  kpis(); dsNote(); draw(); renderTable(); keyGate(); buildChart(); loadBrief();
+  kpis(); dsNote(); draw(); renderTable(); buildChart(); loadBrief();
 }
 function gate(){ document.querySelector('.wrap').innerHTML='<div class="card"><h2>Sign in first</h2><p class="note">Open the dashboard, sign in, then return. This page shares that session.</p><a class="btn" href="/">Go to dashboard</a></div>'; }
 function kpis(){
@@ -300,11 +296,6 @@ async function ask(){
   }catch(e){ $('askOut').textContent='Could not reach the model.'; }
 }
 function aiKey(){ try{return localStorage.getItem('td_akey')||''}catch(e){return ''} }
-function saveKey(){ const v=($('keyInput').value||'').trim(); if(!v) return;
-  try{localStorage.setItem('td_akey',v)}catch(e){}
-  $('keyInput').value=''; $('keyRow').style.display='none'; loadBrief(); }
-function keyGate(){ const has=!!aiKey(); const kr=$('keyRow'); if(kr) kr.style.display= has?'none':'flex'; return has; }
-
 function buildChart(){
   const type=$('cbType').value, xdim=$('cbX').value, ymode=$('cbY').value, split=$('cbSplit').value;
   const d=rows();
@@ -338,7 +329,7 @@ async function aiCall(payload){
 }
 async function loadBrief(){
   const b=$('brief'); if(!b) return;
-  if(!aiKey()){ b.innerHTML='Add your Anthropic API key below to switch on the AI briefing, chart explanations, briefs and language filtering.'; keyGate(); return; }
+  if(!aiKey()){ b.innerHTML='Add your Anthropic API key in the dashboard\u2019s API key tab to switch on the AI briefing, explanations, briefs and language filtering.'; return; }
   b.textContent='Generating this week\u2019s briefing\u2026';
   const m=DATA.meta;
   const focus='Snapshot: '+m.tender_count+' tenders, '+DATA.tenders.filter(t=>t.opp).length+' Jazz opportunities. '
@@ -352,15 +343,14 @@ function catByMonth(){
   const months=[...new Set(d.map(r=>mkey(r._d)))].sort();
   return top.map(c=>({category:c,byMonth:months.map(mo=>({month:mo,count:d.filter(r=>(r.cat||'Unclassified')===c&&mkey(r._d)===mo).length}))}));
 }
-async function explainChart(which){
-  const t=$('exp-'+which); if(!t) return;
-  if(!aiKey()){ t.innerHTML='<span class="muted">Set your API key on the dashboard Ask tab to enable explanations.</span>'; return; }
-  t.innerHTML='<span class="muted">Reading the underlying tenders\u2026</span>';
-  let focus,q;
-  if(which==='momentum'){ focus='Monthly tender counts by category: '+JSON.stringify(catByMonth()); q='Which categories are rising or falling across these months, and what is driving it?'; }
-  else { focus='Tender counts by category: '+JSON.stringify(DATA.meta.by_category)+'. Most active buyers: '+JSON.stringify(DATA.meta.top_buyers); q='Why do the opportunities concentrate in these categories, based on the buyers active here?'; }
-  const j=await aiCall({mode:'explain',focus,question:q});
-  t.innerHTML='<div class="aiexpbox">'+((j.answer||'No explanation.').replace(/\n/g,'<br>'))+'</div>';
+async function explainView(){
+  const out=$('askOut');
+  if(!aiKey()){ out.innerHTML='<span class="muted">Add your API key in the dashboard\u2019s API key tab to enable this.</span>'; return; }
+  out.innerHTML='<span class="muted">Reading the tenders behind these charts\u2026</span>';
+  const focus='Monthly category counts: '+JSON.stringify(catByMonth())+'. Demand by category: '+JSON.stringify(DATA.meta.by_category)
+    +'. Most active buyers: '+JSON.stringify(DATA.meta.top_buyers)+'. Lane split: '+JSON.stringify(DATA.meta.by_lane)+'.';
+  const j=await aiCall({mode:'explain',focus,question:'Explain what these charts show about Jazz demand right now: which categories and buyers are driving it, and what is moving month to month.'});
+  out.innerHTML='<div class="aiexpbox">'+((j.answer||'No explanation.').replace(/\n/g,'<br>'))+'</div>';
 }
 async function askFilter(){
   const el=$('nlFilter'); const q=(el.value||'').trim();
