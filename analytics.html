@@ -60,6 +60,12 @@
   .askrow{display:flex;gap:10px}.askrow input{flex:1}
   #askOut{margin-top:14px;font-size:14px;line-height:1.65}
   .muted{color:var(--ink-3);font-size:12.5px}
+  .aiexp{margin-top:8px}
+  .aiexpbox{background:linear-gradient(180deg,#eefbfc,#fff);border:1px solid var(--brand-2);border-radius:10px;padding:11px 13px;font-size:13px;line-height:1.55;color:var(--ink)}
+  .briefbtn{border:1px solid var(--line);background:#fff;border-radius:7px;cursor:pointer;font-size:12px;padding:3px 8px;color:var(--brand)}
+  .briefbtn:hover{background:#eefbfc;border-color:var(--brand-2)}
+  .briefmodal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:50;align-items:center;justify-content:center}
+  .briefmodal .bm-card{background:#fff;max-width:520px;margin:12vh auto;border-radius:14px;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.25);font-size:14px;line-height:1.6}
   @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}}
 </style>
 </head>
@@ -79,6 +85,19 @@
 
   <div class="kpis" id="kpis"></div>
 
+  <div class="card" style="border:1px solid var(--brand-2);background:linear-gradient(180deg,#eefbfc 0%,#ffffff 60%)">
+    <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+      <span style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:#fff;background:linear-gradient(135deg,var(--brand),var(--brand-2));border-radius:6px;padding:4px 9px">AI ANALYST</span>
+      <h2 style="margin:0">Ask the data, or let it brief you</h2>
+    </div>
+    <div class="askrow" style="margin:12px 0 4px">
+      <input class="srch" id="askQ" style="min-width:auto" placeholder="Ask anything — why is Managed Security rising, compare buyers by value, what should Jazz watch this week">
+      <button class="btn" onclick="ask()">Ask</button>
+    </div>
+    <div id="brief" class="muted" style="margin-top:6px"></div>
+    <div id="askOut"></div>
+  </div>
+
   <div class="card">
     <h2>Opportunities over time</h2>
     <p class="note">Each point is a tender or award on its month, against its value. Colour is the lens: switch it to read the same market by category, buyer, bidder, or source. Click a legend entry to isolate it.</p>
@@ -95,19 +114,21 @@
 
   <div class="grid2">
     <div class="card"><h2>Volume by month</h2><p class="note">Tender flow per month, split by Jazz lane.</p><div id="volume" class="chart" style="height:300px"></div></div>
-    <div class="card"><h2>Category momentum</h2><p class="note">Tenders per month for the leading categories. Rising lines mean growing demand.</p><div id="momentum" class="chart" style="height:300px"></div></div>
+    <div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>Category momentum</h2><p class="note">Tenders per month for the leading categories. Rising lines mean growing demand.</p></div><button class="btn ghost" style="max-width:110px;padding:6px 10px;font-size:12px" onclick="explainChart('momentum')">✨ Explain</button></div><div id="momentum" class="chart" style="height:300px"></div><div id="exp-momentum" class="aiexp"></div></div>
   </div>
 
-  <div class="card" style="margin-top:18px"><h2>Demand by category</h2><p class="note">Where the opportunities concentrate.</p><div id="cats" class="chart" style="height:300px"></div></div>
+  <div class="card" style="margin-top:18px"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>Demand by category</h2><p class="note">Where the opportunities concentrate.</p></div><button class="btn ghost" style="max-width:110px;padding:6px 10px;font-size:12px" onclick="explainChart('cats')">✨ Explain</button></div><div id="cats" class="chart" style="height:300px"></div><div id="exp-cats" class="aiexp"></div></div>
 
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
       <div><h2>Live dataset</h2><p class="note" style="margin-bottom:0">The rows behind the charts. This is the sheet that keeps updating on every scan.</p></div>
-      <div style="display:flex;gap:9px;align-items:center">
+      <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+        <input class="srch" id="nlFilter" placeholder="✨ Filter in words: Core tenders over 50M this month" style="min-width:280px" onkeydown="if(event.key==='Enter')askFilter()">
         <input class="srch" id="tblQ" placeholder="Filter rows…" oninput="renderTable()">
         <a class="btn ghost" href="/api/export-history?days=3650">Download Excel</a>
       </div>
     </div>
+    <div id="nlChip" class="muted" style="margin-top:8px;font-size:12px"></div>
     <div style="max-height:460px;overflow:auto;margin-top:14px;border:1px solid var(--line);border-radius:12px">
       <table id="tbl"></table>
     </div>
@@ -115,9 +136,7 @@
 
   <div class="card">
     <h2>Ask the data</h2>
-    <p class="note">Natural-language questions over the current dataset. Ask for a comparison and it answers in words, and where it helps, a chart.</p>
-    <div class="askrow"><input class="srch" id="askQ" style="min-width:auto" placeholder="e.g. compare award value by buyer, or which categories are growing"><button class="btn" onclick="ask()">Ask</button></div>
-    <div id="askOut"></div>
+    <p class="note">The AI analyst at the top of the page answers questions over this dataset, explains any chart, and briefs you on what changed. Scroll up to ask.</p>
   </div>
 
   <p class="muted" style="margin-top:20px">Value shows where the source discloses it. Tender value coverage is partial, so counts are the reliable lens for tenders; awards carry value on every row.</p>
@@ -141,7 +160,7 @@ async function load(){
   if(r.status===401) return gate();
   DATA=await r.json();
   $('fresh').textContent=DATA.meta.tender_count.toLocaleString()+' tenders · '+DATA.meta.award_count+' awards';
-  kpis(); dsNote(); draw(); renderTable();
+  kpis(); dsNote(); draw(); renderTable(); loadBrief();
 }
 function gate(){ document.querySelector('.wrap').innerHTML='<div class="card"><h2>Sign in first</h2><p class="note">Open the dashboard, sign in, then return. This page shares that session.</p><a class="btn" href="/">Go to dashboard</a></div>'; }
 function kpis(){
@@ -208,15 +227,30 @@ function drawCats(){
 }
 function draw(){ drawScatter(); drawVolume(); drawMomentum(); drawCats(); }
 
+let NLFILTER=null, LASTROWS=[];
+function applyNL(d){
+  const f=NLFILTER; if(!f) return d;
+  return d.filter(r=>{
+    if(f.lane && (r.lane||'')!==f.lane) return false;
+    if(f.category && (r.cat||'').toLowerCase()!==String(f.category).toLowerCase()) return false;
+    if(f.min_value && !((r.v||0)>=f.min_value)) return false;
+    if(f.month && (r._d?mkey(r._d):'')!==f.month) return false;
+    if(f.text && !(((r.buyer||'')+(r.title||'')).toLowerCase().includes(String(f.text).toLowerCase()))) return false;
+    return true;
+  });
+}
 function renderTable(){
   const q=($('tblQ').value||'').toLowerCase();
   let d=rows().sort((a,b)=>b._d-a._d);
+  d=applyNL(d);
   if(q) d=d.filter(r=>((r.buyer||'')+(r.title||'')+(r.cat||'')).toLowerCase().includes(q));
-  const head='<thead><tr><th>Month</th><th>Buyer</th><th>Category</th><th>Lane</th><th>Value</th><th>Source</th></tr></thead>';
-  const body=d.slice(0,150).map(r=>`<tr><td>${r._d.toLocaleDateString('en-GB',{month:'short',year:'numeric'})}</td>
+  LASTROWS=d.slice(0,150);
+  const head='<thead><tr><th>Month</th><th>Buyer</th><th>Category</th><th>Lane</th><th>Value</th><th>Source</th><th></th></tr></thead>';
+  const body=LASTROWS.map((r,i)=>`<tr><td>${r._d.toLocaleDateString('en-GB',{month:'short',year:'numeric'})}</td>
     <td>${(r.buyer||'').slice(0,42)}</td><td>${r.cat||'—'}</td>
     <td><span class="lanepill l-${(r.lane||'None').replace('-','')}">${r.lane||'—'}</span></td>
-    <td>${money(r.v)}</td><td>${r.source||''}</td></tr>`).join('');
+    <td>${money(r.v)}</td><td>${r.source||''}</td>
+    <td><button class="briefbtn" onclick="briefRow(${i})" title="AI brief">✨</button></td></tr>`).join('');
   $('tbl').innerHTML=head+'<tbody>'+body+'</tbody>';
 }
 
@@ -244,6 +278,65 @@ async function ask(){
       Plotly.newPlot(div,[{type:j.chart.type||'bar',x:j.chart.x,y:j.chart.y,marker:{color:'#0f5c6b'}}],lay,CFG); }
   }catch(e){ $('askOut').textContent='Could not reach the model.'; }
 }
+function aiKey(){ try{return localStorage.getItem('td_akey')||''}catch(e){return ''} }
+async function aiCall(payload){
+  const key=aiKey(); if(!key) return {answer:''};
+  const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({api_key:key},payload))});
+  return await r.json();
+}
+async function loadBrief(){
+  const b=$('brief'); if(!b) return;
+  if(!aiKey()){ b.innerHTML='Set your Anthropic API key on the dashboard\u2019s Ask tab to switch on the AI briefing, chart explanations and language filtering.'; return; }
+  b.textContent='Generating this week\u2019s briefing\u2026';
+  const m=DATA.meta;
+  const focus='Snapshot: '+m.tender_count+' tenders, '+DATA.tenders.filter(t=>t.opp).length+' Jazz opportunities. '
+    +'Tenders by category: '+JSON.stringify(m.by_category)+'. By Jazz lane: '+JSON.stringify(m.by_lane)+'. Most active buyers: '+JSON.stringify(m.top_buyers)+'.';
+  const j=await aiCall({mode:'summary',focus,question:'brief'});
+  b.innerHTML='<b style="color:var(--brand)">This week: </b>'+((j.answer||'No briefing.').replace(/\n/g,' '));
+}
+function catByMonth(){
+  const d=rows(); const cnt={}; d.forEach(r=>{const c=r.cat||'Unclassified'; cnt[c]=(cnt[c]||0)+1;});
+  const top=Object.keys(cnt).filter(c=>c!=='Unclassified').sort((a,b)=>cnt[b]-cnt[a]).slice(0,6);
+  const months=[...new Set(d.map(r=>mkey(r._d)))].sort();
+  return top.map(c=>({category:c,byMonth:months.map(mo=>({month:mo,count:d.filter(r=>(r.cat||'Unclassified')===c&&mkey(r._d)===mo).length}))}));
+}
+async function explainChart(which){
+  const t=$('exp-'+which); if(!t) return;
+  if(!aiKey()){ t.innerHTML='<span class="muted">Set your API key on the dashboard Ask tab to enable explanations.</span>'; return; }
+  t.innerHTML='<span class="muted">Reading the underlying tenders\u2026</span>';
+  let focus,q;
+  if(which==='momentum'){ focus='Monthly tender counts by category: '+JSON.stringify(catByMonth()); q='Which categories are rising or falling across these months, and what is driving it?'; }
+  else { focus='Tender counts by category: '+JSON.stringify(DATA.meta.by_category)+'. Most active buyers: '+JSON.stringify(DATA.meta.top_buyers); q='Why do the opportunities concentrate in these categories, based on the buyers active here?'; }
+  const j=await aiCall({mode:'explain',focus,question:q});
+  t.innerHTML='<div class="aiexpbox">'+((j.answer||'No explanation.').replace(/\n/g,'<br>'))+'</div>';
+}
+async function askFilter(){
+  const el=$('nlFilter'); const q=(el.value||'').trim();
+  if(!q){ clearNL(); return; }
+  if(!aiKey()){ $('nlChip').textContent='Set your API key to filter in words.'; return; }
+  const ph=el.placeholder; el.placeholder='Interpreting\u2026';
+  const j=await aiCall({mode:'filter',question:q});
+  el.placeholder=ph; NLFILTER=j.filter||null; renderTable();
+  const parts=[]; if(NLFILTER){for(const k in NLFILTER){if(NLFILTER[k]!=null&&NLFILTER[k]!=='')parts.push(k+': '+NLFILTER[k]);}}
+  $('nlChip').innerHTML = parts.length? '✨ Filtering by '+parts.join(', ')+' · <a href="#" onclick="clearNL();return false">clear</a>' : 'No filter matched that request.';
+}
+function clearNL(){ NLFILTER=null; const el=$('nlFilter'); if(el)el.value=''; const c=$('nlChip'); if(c)c.innerHTML=''; renderTable(); }
+async function briefRow(i){
+  const r=LASTROWS[i]; if(!r) return;
+  let box=$('briefModal');
+  if(!box){ box=document.createElement('div'); box.id='briefModal'; box.className='briefmodal'; box.onclick=(e)=>{if(e.target===box)closeBrief()}; document.body.appendChild(box); }
+  box.style.display='block';
+  if(!aiKey()){ box.innerHTML='<div class="bm-card">Set your API key on the dashboard Ask tab to generate briefs.<br><br><button class="btn" onclick="closeBrief()">Close</button></div>'; return; }
+  box.innerHTML='<div class="bm-card"><span class="muted">Writing brief\u2026</span></div>';
+  const focus='Tender: '+JSON.stringify({title:r.title,buyer:r.buyer,lane:r.lane,category:r.cat,value:r.v,source:r.source});
+  const j=await aiCall({mode:'brief',focus,question:'brief'});
+  box.innerHTML='<div class="bm-card"><div style="font-size:10px;font-weight:800;letter-spacing:1px;color:var(--brand-2)">AI TENDER BRIEF</div>'
+    +'<b style="display:block;margin:6px 0 8px">'+(r.title||'Tender')+'</b>'
+    +'<p style="margin:0">'+((j.answer||'No brief.').replace(/\n/g,'<br>'))+'</p>'
+    +'<div style="font-size:12px;color:var(--ink-3);margin-top:10px">'+(r.buyer||'')+' · '+(r.lane||'')+' · '+money(r.v)+'</div>'
+    +'<button class="btn" style="margin-top:14px" onclick="closeBrief()">Close</button></div>';
+}
+function closeBrief(){ const b=$('briefModal'); if(b)b.style.display='none'; }
 load();
 </script>
 </body>

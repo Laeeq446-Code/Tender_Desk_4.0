@@ -1284,6 +1284,78 @@ async def ask(request: Request):
     if not key:
         return {"answer": "No API key set. Paste your Anthropic key in the field above."}
 
+    import re as _re, requests as _rq, json as _json
+    mode = (body.get("mode") or "ask").strip()
+    focus = (body.get("focus") or "").strip()
+
+    def _llm(system, user, max_tokens=700):
+        r = _rq.post("https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": key, "anthropic-version": "2023-06-01",
+                     "content-type": "application/json"},
+            json={"model": LLM_MODEL, "max_tokens": max_tokens, "system": system,
+                  "messages": [{"role": "user", "content": user}]}, timeout=60)
+        d = r.json()
+        if r.status_code != 200:
+            return {"answer": "Claude API error: " +
+                    d.get("error", {}).get("message", "error")[:200]}
+        text = "".join(b.get("text", "") for b in d.get("content", []))
+        chart = None
+        m = _re.search(r"```chart\s*(\{.*?\})\s*```", text, _re.S)
+        if m:
+            try:
+                chart = _json.loads(m.group(1))
+            except Exception:
+                chart = None
+            text = text[:m.start()].rstrip()
+        return {"answer": text, "chart": chart}
+
+    def _guard(fn):
+        try:
+            return fn()
+        except Exception as e:
+            return {"answer": f"Could not reach the Claude API: {type(e).__name__}"}
+
+    if mode == "summary":
+        sysp = ("You are the analyst behind Tender Desk for Jazz, a telecom operator. "
+                "From the dataset snapshot, write 2 to 3 sentences on what stands out "
+                "right now: where Jazz demand concentrates, what is rising, and one thing "
+                "to watch this week. Specific and plain, no bullet points, no preamble.")
+        return _guard(lambda: _llm(sysp, focus or "No data provided.", 350))
+
+    if mode == "explain":
+        sysp = ("You are the analyst behind Tender Desk for Jazz. Explain WHY the trend "
+                "described is happening, grounded ONLY in the rows and figures provided. "
+                "Name the specific buyers, categories or tenders driving it. Do not invent "
+                "a cause that is not visible in the data; if the rows only show what moved, "
+                "say that plainly. 2 to 4 sentences of plain prose.")
+        return _guard(lambda: _llm(sysp, f"{focus}\n\nEXPLAIN: {q}", 450))
+
+    if mode == "brief":
+        sysp = ("You are the analyst behind Tender Desk for Jazz. Write a short brief for "
+                "a salesperson on this one tender: what it is, why it fits Jazz and in which "
+                "lane, and one thing to watch. Three short sentences, plain prose, no "
+                "headings.")
+        return _guard(lambda: _llm(sysp, focus, 300))
+
+    if mode == "filter":
+        sysp = ('Convert the user request into a tender filter. Output ONLY a JSON object, '
+                'no prose and no code fence. Schema: {"lane": "Core"|"Partner-led"|"Signal"'
+                '|null, "category": string|null, "min_value": number|null, "month": '
+                '"YYYY-MM"|null, "text": string|null}. Use null for anything unspecified. '
+                'Category is one of: Connectivity, Managed Security, Cloud & Hosting, '
+                'Systems Integration, Smart City & Surveillance, Data & Analytics, '
+                'IoT & M2M, Enterprise Mobility.')
+        def _do_filter():
+            res = _llm(sysp, q, 200)
+            raw = (res.get("answer") or "").strip()
+            m = _re.search(r"\{.*\}", raw, _re.S)
+            return {"filter": _json.loads(m.group(0)) if m else {}}
+        try:
+            return _do_filter()
+        except Exception as e:
+            return {"filter": {}, "error": type(e).__name__}
+
+
     # Ground the model in the actual pipeline, not one keyword query. The
     # previous version searched on words from the question, found nothing for
     # phrasings like "what should Jazz look at", and the model then honestly
