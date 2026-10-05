@@ -82,7 +82,7 @@ CORE = {
 # ── PARTNER: Jazz leads a consortium or owns the network layer.
 PARTNER = {
     "Managed Security": [
-        "security operation cent", "soc service", "siem", "soar", "managed security",
+        "security operation cent", "security operations cent", "soc service", "siem", "soar", "managed security",
         "cyber security service", "cybersecurity service", "threat intelligence",
         "ddos protection", "anti-ddos", "penetration test", "vapt",
         "vulnerability assessment", "incident response", "security monitoring",
@@ -176,70 +176,31 @@ NEG_CONTEXT = [
      r"transmission line|grid station|\d+\s*kv|switchgear|circuit breaker|"
      r"electric|power cable|conductor|pylon|cooling tower|water tower"),
     (r"training|capacity building", r"teacher|nurse|farmer|driver"),
+    # duct lines for HT/LT power cables and civil works are not telecom
+    (r"duct|right of way|network expansion",
+     r"construction of|civil work|ht/lt|\d+\s*kv|shifting of|pcc|flooring|"
+     r"excavat|trench|manhole|drain|sewer|road cut|boundary wall"),
+    # fibre that is a material or a laser, not a network
+    (r"fiber|fibre", r"laser|marking machine|fiber channel|fibre channel|"
+     r"fiber glass|fibreglass|fiberglass|glass sheet|fiber shed|reinforced|"
+     r"cement|textile|cloth"),
 ]
 
 
-# ── Vocabulary expansion, validated against the team's curated gold set.
-# These terms were missing and caused real Jazz-relevant tenders to drop to
-# None. Kept specific enough not to pull in civil or physical-goods tenders.
-CORE["Connectivity"] += [
-    "internet link", "backup internet", "backup link", "provision of internet",
-    "internet services", "backhaul link", "managed connectivity",
-]
-CORE["IoT & M2M"] += [
-    "tracker", "gps tracker", "vehicle tracker", "telematics",
-    "tracking and management", "tracking system", "tracking service",
-]
-CORE["Cloud & Hosting"] += [
-    "datacenter", "data center", "tier-iii", "tier iii", "tier-3 data",
-    "tier iii data", "certified datacenter", "compute server",
-    "high performance compute", "hpc solution", "storage server",
-]
-PARTNER["Managed Security"] += [
-    "ng firewall", "next generation firewall", "next-generation firewall",
-    "endpoint protection", "firewall license", "firewall licence",
-    "firewall renewal", "sd-wan enabled", "wireless access point",
-]
-PARTNER["Smart City & Surveillance"] += [
-    "cctv", "cctv surveillance", "surveillance solution", "surveillance system",
-    "video surveillance", "public announcement system", "pa system",
-]
-PARTNER["Systems Integration"] += [
-    "management system", "campus management system", "learning management system",
-    "examination management system", "education management system",
-    "voice communication system", "communication system", "web-based",
-    "web based", "monitoring dashboard", "project monitoring", "erp",
-    "microplanning", "gis integration",
-]
-PARTNER["Data & Analytics"] += [
-    "gis", "gis-enabled", "gis enabled", "ai cloud", "government ai",
-    "ai-powered", "ai powered", "ai-enabled", "ai enabled",
-]
-SIGNAL["IT Procurement"] += [
-    "layer-2 switch", "layer 2 switch", "manageable switch", "ssd", "pdu",
-    "cat-06", "cat 6 cable", "network infrastructure", "networking infrastructure",
-    "computer lab", "computer labs", "gpu", "gpu server", "server",
-    "data server", "rack server", "blade server", "server hardware",
-    "networking items", "networking item", "it equipment", "ict equipment",
-]
-# A second field pass. Terms that were still dropping real ICT leads.
-PARTNER["Systems Integration"] += [
-    "software", "software license", "software licence", "license renewal",
-    "licence renewal", "website", "web development", "website development",
-    "web portal", "web application", "call center", "call centre",
-    "call center agent", "document management system", "dms", "digitization",
-    "digitisation", "computer labs", "windows 11", "ms office", "microsoft office",
-    "microsoft license", "cisco", "electronic data management",
-]
-CORE["Connectivity"] += [
-    "wi-fi", "wifi", "wlan", "lan setup", "wireless lan", "ddos", "ddos protection",
-    "website hosting", "san storage",
-]
+# Terms whose final token is a word STEM rather than a whole word. Without
+# this, "call cent" could never match "call centre", because the trailing
+# boundary rejected the letters that follow. That silently excluded call
+# centres, data centres and SOCs from the Core and Partner lanes.
+STEMS = {"cent", "datacent", "digitiz", "digitis", "licen", "analytic",
+         "virtualiz", "virtualis", "automat", "telemetr"}
 
 
 def _c(words):
-    return [(w, re.compile(r"(?<![a-z0-9])" + re.escape(w) + r"s?(?![a-z])", re.I))
-            for w in words]
+    out = []
+    for w in words:
+        tail = r"[a-z]*" if w.split()[-1] in STEMS else r"s?(?![a-z])"
+        out.append((w, re.compile(r"(?<![a-z0-9])" + re.escape(w) + tail, re.I)))
+    return out
 
 
 _CORE = {k: _c(v) for k, v in CORE.items()}
@@ -272,7 +233,163 @@ def _hits(groups, text):
     return out
 
 
+CLASSIFIER_VERSION = "5.1"
+
+# ── second-order dimensions used by analytics ─────────────────────────
+CITIES = ["islamabad", "rawalpindi", "karachi", "lahore", "peshawar", "quetta",
+          "faisalabad", "multan", "hyderabad", "sukkur", "gujranwala", "sialkot",
+          "bahawalpur", "sargodha", "abbottabad", "mardan", "gilgit", "skardu",
+          "muzaffarabad", "gwadar", "sahiwal", "taxila", "wah cantt", "wah",
+          "kohat", "swat", "murree", "larkana", "dera ismail khan", "d i khan",
+          "jhelum", "sheikhupura", "okara", "rahim yar khan", "nowshera",
+          "chitral", "mirpur", "haripur", "attock", "chakwal", "mianwali",
+          "kasur", "jhang", "dera ghazi khan", "dg khan", "jamshoro", "nawabshah",
+          "mirpurkhas", "thatta", "turbat", "khuzdar", "bannu", "risalpur"]
+
+PARENTS = ["Banking Mohtasib Pakistan", "Federal Board of Revenue (FBR)",
+           "Higher Education Commission (HEC)", "Ministry of Climate Change",
+           "Ministry of Commerce", "Ministry of Communications", "Ministry of Defence",
+           "Ministry of Energy (Petroleum Division)", "Ministry of Energy (Power Division)",
+           "Ministry of Finance", "Ministry of Foreign Affairs",
+           "Ministry of IT and TeleCommunication", "Ministry of IT and Telecom",
+           "Ministry of Industries & Production (MoIP)",
+           "Ministry of Interior and Narcotics Control", "Ministry of Law and Justice",
+           "Ministry of National Food Security & Research (MNFSR)",
+           "Ministry of National Health Services, Regulation & Coordination",
+           "Ministry of Planning, Development & Special Initiatives",
+           "Ministry of Federal Education and Professional Training",
+           "Ministry of Information and Broadcasting", "Ministry of Railways",
+           "Ministry of Maritime Affairs", "Ministry of Water Resources",
+           "Cabinet Division", "National Heritage & Culture Division",
+           "Pakistan Atomic Energy Commission (PAEC)"]
+_PARENTS = sorted(PARENTS, key=len, reverse=True)
+
+
+def normalize_buyer(buyer):
+    """Reduce an EPMS buyer string to the organisation that actually buys.
+
+    EPMS concatenates parent ministry, organisation and city, often with the
+    organisation repeated: "Islamabad Electric Supply Company (IESCO)
+    Islamabad Electric Supply Company (IESCO) Islamabad - Pakistan". Raw
+    strings split one account into many rows, which is why the contacts and
+    account views under-counted every buyer.
+    """
+    b = re.sub(r"\s+", " ", str(buyer or "")).strip()
+    if not b:
+        return ""
+    b = re.sub(r"[\s,-]+pakistan\s*$", "", b, flags=re.I).strip()
+    for _ in range(3):
+        low = b.lower()
+        hit = next((c for c in CITIES if low.endswith(" " + c)), None)
+        if not hit:
+            break
+        b = b[:-(len(hit) + 1)].strip(" ,-")
+    for p in _PARENTS:
+        if b.lower().startswith(p.lower()):
+            rest = b[len(p):].strip(" ,-")
+            acr = re.search(r"\(([A-Za-z]{2,8})\)", p)
+            own_office = acr and rest.lower().startswith(acr.group(1).lower())
+            if len(rest.split()) >= 2 and not own_office:
+                b = rest
+            elif own_office:
+                b = p
+            break
+    w = b.split()
+    for k in range(len(w) // 2, 1, -1):
+        if w[:k] == w[k:2 * k]:
+            w = w[:k] + w[2 * k:]
+            break
+    b = " ".join(w)
+    m = re.match(r"^(.*\(([A-Z]{2,8})\))\s+\2\b(.*)$", b)
+    if m:
+        b = (m.group(1) + m.group(3)).strip()
+    return b[:160]
+
+
+SECTORS = [
+    ("Multilateral & Donor", r"world bank|asian development|\badb\b|undp|unicef|"
+                             r"\bwfp\b|usaid|ifad|\bun\b agency|giz|jica"),
+    ("Telecom & IT", r"telecom|information technology|\bnitb\b|\bpta\b|\bntc\b|"
+                     r"universal service|\busf\b|ignite|\bpseb\b|\bpitb\b|nadra|"
+                     r"national database|\bpral\b|revenue automation|special communication|"
+                     r"\bsco\b|frequency allocation|digital|e-?governance|cyber"),
+    ("Finance & Revenue", r"finance|revenue|\bfbr\b|\bbank\b|state bank|\bsecp\b|"
+                          r"securities|insurance|state life|\bnicl\b|monitoring unit|"
+                          r"\bfmu\b|mint|microfinance|accountant general"),
+    ("Energy & Utilities", r"energy|power|electric|wapda|\bngc\b|grid|gas|sngpl|ssgc|"
+                           r"ogdc|oil|petroleum|\bpso\b|\bppl\b|hydel|iesco|lesco|fesco|"
+                           r"gepco|mepco|pesco|hesco|qesco|sepco|tesco|ntdc|\bpitc\b|"
+                           r"water and sanitation|wasa|atomic energy"),
+    ("Defence & Security", r"defence|army|navy|air force|\bpaf\b|police|rangers|"
+                           r"frontier corps|interior|\bfia\b|ordnance|\bpof\b|"
+                           r"heavy industries|military|signals|cantonment|counter narcotics|"
+                           r"protection unit|emergency services|rescue|disaster management|"
+                           r"\bndma\b|ndrmf"),
+    ("Health", r"health|hospital|medical|cardiology|\bnih\b|drug regulatory|drap|"
+               r"pharma|pphi|neonatology|population"),
+    ("Education & Research", r"universit|college|education|school|\bhec\b|"
+                             r"institute of|research|pcrwr|navttc|academy|\biba\b|"
+                             r"\bnust\b|comsats"),
+    ("Transport & Infrastructure", r"railway|highway|\bnha\b|airport|aviation|\bpia\b|"
+                                   r"\bports?\b|shipping|ministry of communications|motorway|ring road|"
+                                   r"infrastructure development|works department|"
+                                   r"road asset|transport"),
+    ("Governance & Public Admin", r"cabinet|secretariat|ombudsman|mohtasib|court|law|"
+                                  r"justice|parliament|election|accountability|planning|"
+                                  r"statistics|\bnipa\b|foreign affairs|commerce|"
+                                  r"information and broadcasting|press information"),
+    ("Provincial Government", r"government of (?:the )?(?:punjab|sindh|khyber|balochistan)|"
+                              r"punjab|sindh|khyber pakhtunkhwa|balochistan|district"),
+]
+_SECTORS = [(n, re.compile(p, re.I)) for n, p in SECTORS]
+
+
+def buyer_sector(buyer):
+    b = str(buyer or "")
+    for name, rx in _SECTORS:
+        if rx.search(b):
+            return name
+    return "Other Public Sector"
+
+
+TENDER_TYPES = [
+    ("EOI / Prequalification", r"expression of interest|\beoi\b|pre-?\s?qualification|"
+                               r"prequalification|enlistment|registration of firms"),
+    ("Framework agreement", r"framework"),
+    ("Consultancy", r"consultan|third party|\btpv\b|\btpm\b|feasibility|advisory|"
+                    r"audit firm|technical audit"),
+    ("Solution / turnkey", r"turnkey|establishment of|implementation|deployment|"
+                           r"development of|design,? development|digiti[sz]|"
+                           r"end[- ]to[- ]end|integration of|system for|\bsystem\b|solution|platform"),
+    ("Works", r"construction|civil work|renovation|repair work|rehabilitation|"
+              r"laying of|erection"),
+    ("Services", r"hiring|provision of|services?\b|outsourcing|maintenance|support|managed|"
+                 r"cent(?:re|er)\b|"
+                 r"subscription|\bamc\b|rental|lease|renewal"),
+    ("Supply", r"supply|procurement|purchase|acquisition|provide"),
+]
+_TYPES = [(n, re.compile(p, re.I)) for n, p in TENDER_TYPES]
+
+
+def tender_type(title, description=""):
+    t = f"{title or ''} {description or ''}"
+    for name, rx in _TYPES:
+        if rx.search(t):
+            return name
+    return "Other"
+
+
 def classify(title, description="", buyer="", sector=""):
+    """Lane classification plus the dimensions analytics groups by."""
+    out = _classify_lane(title, description, buyer, sector)
+    nb = normalize_buyer(buyer)
+    out["buyer_norm"] = nb
+    out["buyer_sector"] = buyer_sector(f"{buyer} {nb}")
+    out["tender_type"] = tender_type(title, description)
+    return out
+
+
+def _classify_lane(title, description="", buyer="", sector=""):
     """Return lane, product line, evidence, relevance, rationale."""
     text = " " + " ".join(str(x or "") for x in (title, description, sector)).lower() + " "
     b = " " + str(buyer or "").lower() + " "
@@ -285,10 +402,8 @@ def classify(title, description="", buyer="", sector=""):
     account = next((k for k in KEY_ACCOUNTS if _ACCT[k].search(b)), None)
     dbuyer = next((k for k in DIGITAL_BUYERS if _BUYER[k].search(b)), None)
 
-    # Exclusions win only when nothing digital is present. A Signal-level hit,
-    # for example an IT-equipment lot inside a mixed prequalification, survives
-    # as a watch item rather than being dropped entirely.
-    if excl and not core and not partner and not signal:
+    # Exclusions win unless a core capability is explicitly present.
+    if excl and not core:
         return _out("None", "", "", "Low",
                     f"excluded: {', '.join(excl[:3])}", 0)
 

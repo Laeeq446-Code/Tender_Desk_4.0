@@ -17,8 +17,6 @@ import time
 from datetime import datetime
 from urllib.parse import urljoin
 
-import enrich
-
 import ssl
 import requests
 import urllib3
@@ -101,10 +99,7 @@ def parse_date(s):
                 pass
     m = re.search(r"(\d{4})-(\d{2})-(\d{2})", s)
     if m:
-        try:
-            return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3))).date().isoformat()
-        except ValueError:
-            return None
+        return m.group(0)
     m = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})", s)
     if m:
         try:
@@ -175,54 +170,14 @@ class Source:
                 if a.get_text().strip().isdigit()]
         return max(nums) if nums else default
 
-    # ── Precision guard ────────────────────────────────────────────────
-    # Drafted adapters sometimes yield the scaffolding of a listing page
-    # rather than a tender: a "view detail" link, a paginator, a login
-    # prompt, an empty-results banner. These are the rows that read as
-    # "a tender page meant to be accessed" instead of an actual notice.
-    # The guard rejects them on the title alone, so it cannot drop a real
-    # EPMS row that carries a genuine subject line. It gates on nothing
-    # else (buyer, dates), by design, to stay safe for the proven source.
-    min_title_len = 22
-
-    JUNK_TITLE = re.compile(
-        r"^\s*("
-        r"click\s+here|view\s+detail|read\s+more|show\s+more|see\s+detail|"
-        r"download|log\s?in|sign\s?in|register|home|back|next|previous|prev|"
-        r"first|last|page\s*\d+|goto|search\s+result|no\s+record|not\s+found|"
-        r"advertisement|tender\s+detail|open\s+tender|view\s+tender|more\s+info|"
-        r"details?|continue|submit|apply\s+now|loading"
-        r")\s*$", re.I)
-
-    def _looks_real(self, r):
-        t = (r.get("title") or "").strip()
-        if len(t) < self.min_title_len:
-            return False
-        if self.JUNK_TITLE.match(t):
-            return False
-        # a real subject is prose, not a bare reference or a number
-        words = [w for w in re.split(r"\s+", t) if any(ch.isalpha() for ch in w)]
-        if len(words) < 3:
-            return False
-        letters = [ch for ch in t if ch.isalpha()]
-        if len(letters) < 12:
-            return False
-        return True
-
     def fetch(self):
         raise NotImplementedError
 
     def run(self):
         """Fetch, classify, and stamp source metadata. Returns list of rows."""
         out = []
-        dropped = 0
         for r in self.fetch():
             if not r.get("title"):
-                continue
-            if not self._looks_real(r):
-                dropped += 1
-                if self.debug:
-                    print(f"    drop stub: {r.get('title','')[:70]!r}")
                 continue
             c = classify(r.get("title"), r.get("description"),
                          r.get("buyer"), r.get("sector_label"))
@@ -231,8 +186,6 @@ class Source:
             r.setdefault("jurisdiction", self.jurisdiction)
             r["source"] = self.name
             out.append(r)
-        if self.debug and dropped:
-            print(f"    guard dropped {dropped} stub/navigation rows")
         return out
 
 
@@ -864,6 +817,7 @@ class OtherOrgs(Source):
         ("Ignite (NTF)", "https://ignite.org.pk", ["/tenders", "/procurement", "/"]),
         ("PSEB", "https://www.pseb.org.pk", ["/tenders", "/procurement", "/"]),
         ("PTA", "https://www.pta.gov.pk", ["/en/tenders", "/tenders", "/"]),
+        ("USF", "https://www.usf.org.pk", ["/tenders", "/procurement", "/"]),
         ("NADRA", "https://www.nadra.gov.pk", ["/tenders", "/procurement", "/"]),
         ("HEC", "https://www.hec.gov.pk", ["/english/pages/tenders.aspx", "/tenders", "/"]),
         ("PITB", "https://www.pitb.gov.pk", ["/tenders", "/procurement", "/"]),
@@ -1222,101 +1176,139 @@ class KPArchive(ArchiveMixin, KPPRA):
 
 @register
 class EPMSAwards(Source):
-    """PPRA contract awards. Public, and the only route to a forward view.
+    """PPRA contract awards from epms.ppra.gov.pk/public/contracts.
 
-    A tender notice tells you what is happening now. An award tells you who
-    holds the account, at what price, against how many bidders, and, with the
-    contract term parsed from the wording, when it comes back to market.
+    Ported from the Phase 1 notebook, which is the only awards parser that
+    has run successfully against the live portal. The earlier version
+    guessed paths and generic headers and never returned a row, which is why
+    the Intelligence tab stayed empty.
+
+    Listing rows carry the contract number, ministry, title, winner,
+    executing organisation, value and date. For biddable lanes the detail
+    page adds bidders received, tender value and signing date.
     """
     name = "EPMS-Awards"
     tier = "Federal"
     jurisdiction = "Federal"
-    confidence = "drafted"
+    confidence = "proven"
     home = "https://epms.ppra.gov.pk"
-    PATHS = ["/public/tenders/contracts", "/public/contracts",
-             "/public/tenders/contract-awards"]
+    LIST = "/public/contracts"
+    delay = 0.7
+    months_back = 0          # backfill sets this to sweep history by month
+    detail_limit = 120       # detail pages fetched per run, biddable lanes only
 
-    def rows(self, sp, page_url):
-        tb = None
-        for t in sp.find_all("table"):
-            if len(t.find_all("tr")) > 2:
-                tb = t if tb is None or len(t.find_all("tr")) > len(tb.find_all("tr")) else tb
-        if tb is None:
+    def parse_row(self, tr):
+        tds = tr.find_all("td")
+        if len(tds) < 6:
+            return None
+        cells = [clean(td.get_text(" ")) for td in tds]
+        pcn = next((m.group(0) for c in cells for m in [re.search(r"PCN-\d+", c)] if m), None)
+        if not pcn:
+            return None
+        di = max(range(len(tds)), key=lambda i: len(cells[i]))
+        det = tds[di]
+        bolds = [clean(b.get_text()) for b in det.find_all(["strong", "b"])]
+        ministry = bolds[0] if bolds else ""
+        title = bolds[1] if len(bolds) > 1 else (bolds[0] if bolds else cells[di][:200])
+        det_text = cells[di]
+        winner = ""
+        try:
+            after = det_text.split(title, 1)[1]
+            winner = clean(re.split(r"\bNational\b|\bInternational\b|Tender:", after)[0])
+            winner = winner.strip(" -\u2013")[:160]
+        except Exception:
+            pass
+        tn = re.search(r"TS\d+E", det_text)
+        org = clean(tds[di + 1].get_text(" ")) if di + 1 < len(tds) else ""
+        money = next((c for c in cells if re.search(r"(rs\.?|pkr)\s*[\d,]{3,}", c, re.I)), "")
+        if not money and di + 2 < len(tds):
+            money = cells[di + 2]
+        vt, vn, cur = parse_money(money)
+        if vn is not None and vn < 10000:
+            vn = None              # portal data errors such as Rs 2
+        dates = [d for d in (parse_date(c) for c in cells) if d]
+        a = tr.find("a", href=re.compile(r"/contract-details/"))
+        return {
+            "ref": pcn, "tender_no": tn.group(0) if tn else "",
+            "title": title[:300], "description": det_text[:600],
+            "buyer": f"{ministry} {org}".strip() or ministry,
+            "winner": winner, "value_text": vt, "value_num": vn,
+            "award_date": dates[0] if dates else None,
+            "url": urljoin(self.home, a["href"]) if a else self.home + self.LIST,
+        }
+
+    def detail(self, url):
+        try:
+            text = clean(self.soup(url).get_text(" "))
+        except Exception:
+            return {}
+
+        def grab(p):
+            m = re.search(p, text, re.I)
+            return clean(m.group(1)) if m else None
+        bids = grab(r"Bids Received:\s*(\d+)")
+        return {
+            "bids_received": int(bids) if bids else None,
+            "signing_date": parse_date(grab(r"Contract Signing Date:\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})") or ""),
+            "tender_value": parse_money(grab(r"Tender Value:\s*(Rs\.?[\s\d,\.]+)") or "")[1],
+        }
+
+    def _pages(self, params):
+        try:
+            sp = self.soup(self.home + self.LIST, params={**params, "page": 1})
+        except Exception as e:
+            if self.debug:
+                print(f"    [{self.name}] {params}: {type(e).__name__}")
             return
-        heads = [clean(th.get_text()).lower() for th in tb.find_all("th")]
-        for tr in (tb.find("tbody") or tb).find_all("tr"):
-            tds = tr.find_all("td")
-            if len(tds) < 4:
-                continue
-            cells = [clean(td.get_text(" ")) for td in tds]
-            rec = dict(zip(heads, cells)) if heads else {}
-
-            def by(*keys):
-                for k in keys:
-                    for h, v in rec.items():
-                        if k in h and v:
-                            return v
-                return None
-
-            ref = next((m.group(0) for cc in cells
-                        for m in [re.search(r"TS\w{6,}", cc)] if m), None)
-            title = by("title", "subject", "description", "detail") or max(cells, key=len)
-            if len(title) < 10:
-                continue
-            money = by("value", "cost", "amount", "price") or next(
-                (cc for cc in cells if re.search(r"(rs\.?|pkr)\s*[\d,]{4,}", cc, re.I)), "")
-            vt, vn, cur = parse_money(money)
-            bids = by("bids", "bidders", "no. of bids")
-            try:
-                bids = int(re.search(r"\d+", str(bids)).group(0)) if bids else None
-            except Exception:
-                bids = None
-            dates = [d for d in (parse_date(cc) for cc in cells) if d]
-            a = tr.find("a", href=True)
-            row = {
-                "ref": ref or (by("contract no", "reference") or cells[0])[:50],
-                "title": title[:300],
-                "description": " | ".join(cells)[:600],
-                "buyer": by("agency", "organization", "department", "buyer") or "",
-                "winner": by("supplier", "contractor", "awarded to", "winner",
-                             "firm", "vendor") or "",
-                "value_text": vt, "value_num": vn,
-                "bids_received": bids,
-                "award_date": dates[0] if dates else None,
-                "url": urljoin(page_url, a["href"]) if a else page_url,
-            }
-            # Catalogue from the text: winner in the "M/s." convention, contract
-            # term where stated, and a valid date. Never overwrites a real column.
-            enrich.enrich(row)
-            yield row
-
-    def fetch(self):
-        for path in self.PATHS:
-            url = self.home + path
-            try:
-                sp = self.soup(url, params={"page": 1})
-            except Exception as e:
-                if self.debug:
-                    print(f"    [{self.name}] {path}: {type(e).__name__}")
-                continue
-            first = list(self.rows(sp, url))
-            if not first:
-                continue
-            n = self.total_pages(sp)
-            if self.max_pages:
-                n = min(n, self.max_pages)
-            print(f"    [{self.name}] {path} -> {n} pages")
-            for r in first:
-                yield r
-            for p in range(2, n + 1):
+        n = self.total_pages(sp)
+        if self.max_pages:
+            n = min(n, self.max_pages)
+        for p in range(1, n + 1):
+            if p > 1:
                 time.sleep(self.delay)
                 try:
-                    sp = self.soup(url, params={"page": p})
+                    sp = self.soup(self.home + self.LIST, params={**params, "page": p})
                 except Exception:
                     break
-                for r in self.rows(sp, url):
+            tb = sp.find("table")
+            if not tb:
+                continue
+            for tr in (tb.find("tbody") or tb).find_all("tr"):
+                r = self.parse_row(tr)
+                if r:
                     yield r
-            return
+
+    def fetch(self):
+        from datetime import date as _date
+        seen, rows = set(), []
+        windows = [{}]
+        today = _date.today()
+        for i in range(1, (self.months_back or 0) + 1):
+            y, m = divmod((today.year * 12 + today.month - 1) - i, 12)
+            m += 1
+            d_from = _date(y, m, 1)
+            d_to = _date(y + (m == 12), (m % 12) + 1, 1)
+            windows.append({"date_from": d_from.isoformat(), "date_to": d_to.isoformat()})
+        for w in windows:
+            got = 0
+            for r in self._pages(w):
+                if r["ref"] in seen:
+                    continue
+                seen.add(r["ref"])
+                rows.append(r)
+                got += 1
+            if self.debug or w:
+                print(f"    [{self.name}] {w.get('date_from', 'current view')}: +{got}")
+        # enrich only the rows that analytics actually uses
+        from classify import classify
+        fetched = 0
+        for r in rows:
+            c = classify(r["title"], "", r["buyer"])
+            if c["lane"] in ("Core", "Partner-led") and fetched < self.detail_limit:
+                time.sleep(self.delay)
+                r.update({k: v for k, v in self.detail(r["url"]).items() if v})
+                fetched += 1
+            yield r
 
 
 def all_sources():

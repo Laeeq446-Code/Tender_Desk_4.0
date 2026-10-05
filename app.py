@@ -18,6 +18,7 @@ scores off any public deployment until this sits on Jazz infrastructure.
 import os
 import secrets
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
@@ -32,33 +33,36 @@ PASSPHRASE = os.getenv("PASSPHRASE", "jazz2026")
 SCAN_HOURS = [int(h) for h in os.getenv("SCAN_HOURS", "9,12,15,18").split(",")]
 TZ_OFFSET = int(os.getenv("TZ_OFFSET", "5"))          # PKT = UTC+5
 ENABLED = [s.strip() for s in os.getenv(
-    "ENABLED_SOURCES", "EPMS,EPMS-Awards,EPADS,PPRA-Punjab,SPPRA-Sindh,KPPRA-KP,"
-    "BPPRA-Balochistan,Other,WorldBank,ADB,UNGM").split(",") if s.strip()]
+    "ENABLED_SOURCES", "EPMS,EPMS-Awards,EPADS,PPRA-Punjab,SPPRA-Sindh,KPPRA-KP,WorldBank,ADB,Other").split(",") if s.strip()]
 SHOW_FIT = os.getenv("SHOW_FIT", "0") == "1"          # keep off for public
 UI_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui.html")
 
 app = FastAPI(title="Tender Desk")
-_tokens = set()
+# Session tokens are derived from the passphrase rather than held in memory,
+# so a restart or redeploy no longer logs every user out. Changing the
+# passphrase invalidates all sessions.
+import hashlib as _hl, hmac as _hm
+_SECRET = os.getenv("SESSION_SECRET", "") or ("td-" + PASSPHRASE)
+_TOKEN = _hm.new(_SECRET.encode(), PASSPHRASE.encode(), _hl.sha256).hexdigest()
+if PASSPHRASE == "jazz2026":
+    print("[security] PASSPHRASE is the default. Set it in the environment.")
+DETAIL_PER_SCAN = int(os.getenv("DETAIL_PER_SCAN", "30"))
 _lock = threading.Lock()
 _state = {"running": False, "last": None}
 
 db.init()
+try:
+    _rc = db.reclassify_all()
+    if _rc:
+        print(f"[startup] reclassified {_rc} rows with the current classifier")
+except Exception as _e:
+    print(f"[startup] reclassification skipped: {_e}")
 try:
     _fixed = db.repair_dates()
     if _fixed:
         print(f"[startup] corrected {_fixed} impossible advertised dates")
 except Exception as _e:
     print(f"[startup] date repair skipped: {_e}")
-
-# Catalogue awards already in the database: winner from the "M/s." text, tenure
-# where stated, valid dates. Text-only and idempotent, so deploying this update
-# cleans existing rows immediately, before any scan runs.
-try:
-    _en = db.reprocess_awards()
-    if _en:
-        print(f"[startup] catalogued {_en} awards (winner, tenure, dates)")
-except Exception as _e:
-    print(f"[startup] award enrichment skipped: {_e}")
 
 
 # ───────────────────────────────────────────── scanning
@@ -81,13 +85,9 @@ def scan(trigger="manual", only=None, max_pages=None, debug=False):
                 rows = src.run()
                 if name.endswith("Awards"):
                     s, n = db.upsert_awards(rows, name)
-                    try:
-                        db.reprocess_awards()   # keep the catalogue clean
-                    except Exception:
-                        pass
                     ch = 0
                 else:
-                    s, n, ch = db.upsert(rows, name)
+                    s, n, ch = db.upsert(rows, name, rebuild_fts=False)
                 ms = int((datetime.now() - t0).total_seconds() * 1000)
                 db.record_health(name, True, len(rows), f"{n} new, {ch} changed", ms)
                 seen += s
@@ -103,26 +103,15 @@ def scan(trigger="manual", only=None, max_pages=None, debug=False):
                 detail.append({"source": name, "ok": False, "error": str(e)[:200]})
                 print(f"  [{name}] FAILED: {type(e).__name__}: {e}")
         db.clear_new_flags(24)
-
-        # Newspapers ride the same schedule as the portals. This ingests any
-        # e-paper files dropped in the watched folder, and downloads the
-        # configured papers only if fetch is explicitly enabled. It never
-        # raises, so a newspaper problem cannot fail a scan.
+        for _step in (db.repair_dates, db.fts_rebuild, db.find_repeats):
+            try:
+                _step()
+            except Exception as _e:
+                print(f"  post-scan {_step.__name__} skipped: {_e}")
         try:
-            import newspaper_fetch
-            np = newspaper_fetch.auto_ingest()
-            if np.get("rows"):
-                detail.append({"source": "Newspapers", "ok": True,
-                               "rows": np["rows"], "new": np["rows"], "notes": np["notes"]})
-                new += np["rows"]
-                print(f"  [Newspapers] {np['rows']} rows ({np['notes']})")
-        except Exception as e:
-            print(f"  [Newspapers] skipped: {type(e).__name__}: {e}")
-
-        try:
-            db.repair_dates()
-        except Exception:
-            pass
+            prefetch_details(DETAIL_PER_SCAN)
+        except Exception as _e:
+            print(f"  detail prefetch skipped: {_e}")
         db.record_run(started, ok_n, fail_n, seen, new, trigger)
         _state["last"] = {"at": db.now(), "new": new, "seen": seen,
                           "ok": ok_n, "failed": fail_n, "detail": detail}
@@ -133,7 +122,7 @@ def scan(trigger="manual", only=None, max_pages=None, debug=False):
             _state["running"] = False
 
 
-scheduler = BackgroundScheduler(daemon=True)
+scheduler = BackgroundScheduler(daemon=True, timezone="UTC")
 
 
 @app.on_event("startup")
@@ -166,8 +155,36 @@ def _start():
 
 
 # ───────────────────────────────────────────── auth
+def prefetch_details(limit=30):
+    """Populate detail fields for live biddable tenders after each scan.
+
+    Detail was fetched only when a user opened a tender, so contacts, bid
+    security, implied value and attachments stayed empty for almost every
+    row, and the Contacts tab and value analytics had nothing to show.
+    """
+    with db.conn(readonly=True) as c:
+        uids = [r["uid"] for r in c.execute(f"""
+            SELECT uid FROM tenders
+            WHERE is_opportunity=1 AND detail_fetched IS NULL AND url LIKE 'http%'
+              AND dup_of IS NULL AND {db.OPEN_SQL}
+            ORDER BY fit_score DESC, closing LIMIT ?""", (limit,))]
+    done = 0
+    for uid in uids:
+        t = db.get(uid)
+        if not t:
+            continue
+        d = S.fetch_detail(t["url"])
+        if not d.get("error"):
+            db.save_detail(uid, d)
+            done += 1
+        time.sleep(0.4)
+    if uids:
+        print(f"  detail prefetch: {done}/{len(uids)}")
+    return done
+
+
 def authed(request: Request):
-    return request.cookies.get("td_token") in _tokens
+    return _hm.compare_digest(request.cookies.get("td_token") or "", _TOKEN)
 
 
 def require(request: Request):
@@ -180,10 +197,8 @@ async def login(request: Request):
     body = await request.json()
     if (body.get("passphrase") or "").strip() != PASSPHRASE:
         raise HTTPException(401, "Incorrect passphrase")
-    tok = secrets.token_urlsafe(24)
-    _tokens.add(tok)
     r = JSONResponse({"ok": True})
-    r.set_cookie("td_token", tok, max_age=60 * 60 * 12, httponly=True, samesite="lax")
+    r.set_cookie("td_token", _TOKEN, max_age=60 * 60 * 24 * 7, httponly=True, samesite="lax")
     return r
 
 
@@ -216,13 +231,14 @@ def api_tenders(request: Request, q: str = None, sources: str = None,
                 digital_only: int = 1, new_only: int = 0,
                 lanes: str = None, scope: str = "opportunity",
                 date_on: str = None, date_from: str = None, date_to: str = None,
-                tiers: str = None,
+                sectors: str = None, ttypes: str = None,
                 sort: str = "closing", limit: int = 100, offset: int = 0):
     require(request)
     sp = lambda s: [x for x in s.split(",") if x] if s else None
     rows, total = db.search(
+        sectors=sp(sectors), ttypes=sp(ttypes),
         lanes=sp(lanes), scope=scope, date_on=date_on,
-        date_from=date_from, date_to=date_to, tiers=sp(tiers),
+        date_from=date_from, date_to=date_to,
         q=q, sources=sp(sources), domains=sp(domains), relevance=sp(relevance),
         jurisdictions=sp(jurisdictions), status=status, closing_within=closing_within,
         value_min=value_min, value_max=value_max, digital_only=bool(digital_only),
@@ -274,316 +290,6 @@ async def api_scan(request: Request):
 def api_scan_status(request: Request):
     require(request)
     return {"running": _state["running"], "last": _state["last"]}
-
-
-# ── Backfill from the browser, no shell needed. Runs in a background thread so
-# it never blocks the page, and backfill.py checkpoints after every batch, so
-# closing the tab or a host restart resumes rather than restarts.
-_bf = {"running": False, "source": None, "note": None}
-
-
-def _run_backfill(source, pages):
-    _bf.update(running=True, source=source, note="starting")
-    try:
-        import backfill
-        if source == "EPADS":
-            backfill.sweep_epads(end=1)
-        elif source == "WorldBank":
-            backfill.sweep_worldbank(pages=pages)
-        else:
-            backfill.sweep_generic(source, pages=pages)
-        _bf["note"] = "complete"
-    except Exception as e:
-        _bf["note"] = f"error: {type(e).__name__}: {e}"[:200]
-        print(f"[backfill] {source} failed: {e}")
-    finally:
-        _bf["running"] = False
-
-
-@app.post("/api/backfill")
-async def api_backfill(request: Request):
-    require(request)
-    body = {}
-    try:
-        body = await request.json()
-    except Exception:
-        pass
-    source = (body.get("source") or "EPMS-Awards").strip()
-    pages = int(body.get("pages") or 200)
-    if _bf["running"]:
-        return {"ok": False, "error": f"backfill already running ({_bf['source']})"}
-    threading.Thread(target=_run_backfill, args=(source, pages), daemon=True).start()
-    return {"ok": True, "started": source, "pages": pages}
-
-
-@app.get("/api/backfill-status")
-def api_backfill_status(request: Request):
-    require(request)
-    rows = []
-    try:
-        import backfill
-        backfill.init()
-        with db.conn(readonly=True) as c:
-            rows = [dict(r) for r in c.execute(
-                "SELECT source, cursor, highest, lowest, rows_added, done, note, updated "
-                "FROM backfill ORDER BY updated DESC")]
-    except Exception as e:
-        rows = [{"source": "error", "note": str(e)[:120]}]
-    return {"running": _bf["running"], "source": _bf["source"],
-            "note": _bf["note"], "checkpoints": rows}
-
-
-# ── Import a curated list, an Excel or CSV your team maintains or a newspaper
-# extract. Column names are matched loosely, every row is classified on the way
-# in, and rows append to the feed. Upload again any time and it keeps updating,
-# deduped on the same key as a scrape.
-_COL = {
-    "title": ["description", "title", "subject", "tender", "detail", "scope"],
-    "buyer": ["department", "buyer", "agency", "organization", "organisation",
-              "procuring", "client", "entity", "ministry"],
-    "closing": ["submission date", "closing", "closing date", "due date",
-                "deadline", "submission", "last date"],
-    "location": ["location", "region", "jurisdiction", "province", "city"],
-    "value_text": ["value", "amount", "estimated value", "cost"],
-    "url": ["url", "link", "source url"],
-}
-
-
-def _pick(headers, keys):
-    low = {str(h or "").strip().lower(): i for i, h in enumerate(headers)}
-    for want in keys:
-        for h, i in low.items():
-            if want == h or want in h:
-                return i
-    return None
-
-
-def _rows_from_upload(path, suffix):
-    """Yield dict rows from an uploaded xlsx or csv, across all sheets."""
-    out = []
-    if suffix in (".xlsx", ".xlsm"):
-        from openpyxl import load_workbook
-        wb = load_workbook(path, read_only=True, data_only=True)
-        sheets = [(s, list(wb[s].iter_rows(values_only=True))) for s in wb.sheetnames]
-    else:
-        import csv, io
-        with open(path, newline="", encoding="utf-8-sig", errors="ignore") as fh:
-            sheets = [("csv", [tuple(r) for r in csv.reader(fh)])]
-    for _, rows in sheets:
-        if not rows or len(rows) < 2:
-            continue
-        head = rows[0]
-        ci = {k: _pick(head, v) for k, v in _COL.items()}
-        if ci["title"] is None:
-            continue
-        for r in rows[1:]:
-            if not r or ci["title"] >= len(r):
-                continue
-            title = r[ci["title"]]
-            if not title or not str(title).strip():
-                continue
-            def g(k):
-                i = ci.get(k)
-                return str(r[i]).strip() if i is not None and i < len(r) and r[i] is not None else ""
-            out.append({
-                "title": str(title).strip()[:300],
-                "buyer": g("buyer"),
-                "closing": _norm_date(g("closing")),
-                "jurisdiction": g("location") or "Import",
-                "value_text": g("value_text"),
-                "url": g("url"),
-            })
-    return out
-
-
-def _norm_date(s):
-    import re as _re
-    from datetime import datetime as _dt
-    s = (s or "").strip()
-    if not s:
-        return None
-    s = _re.split(r"\s+at\s+", s, flags=_re.I)[0].strip()
-    for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%d %b %Y", "%d %B %Y"):
-        try:
-            return _dt.strptime(s, fmt).date().isoformat()
-        except ValueError:
-            continue
-    return None
-
-
-# ── Newspaper feed controls. Probe reports which papers resolve today, fetch
-# downloads and OCRs them in the background, status reports both. All feed into
-# the same tenders table, tagged source_tier=Newspaper, so the Newspaper feed
-# view queries them like any other tender.
-_np = {"running": False, "note": None, "probe": [], "last": None}
-
-
-def _run_np_fetch():
-    _np.update(running=True, note="fetching")
-    try:
-        import newspaper_fetch
-        n = newspaper_fetch.run_fetch()
-        _np["note"] = f"done, {n} rows"
-        _np["last"] = _np["note"]
-    except Exception as e:
-        _np["note"] = f"error: {type(e).__name__}"
-    finally:
-        _np["running"] = False
-
-
-def _run_np_probe():
-    _np.update(running=True, note="probing")
-    try:
-        import newspaper_fetch
-        _np["probe"] = newspaper_fetch.probe_sources()
-        ok = sum(1 for p in _np["probe"] if p["ok"])
-        _np["note"] = f"{ok} of {len(_np['probe'])} papers resolved"
-    except Exception as e:
-        _np["note"] = f"error: {type(e).__name__}"
-    finally:
-        _np["running"] = False
-
-
-@app.post("/api/newspaper-probe")
-async def api_np_probe(request: Request):
-    require(request)
-    if _np["running"]:
-        return {"ok": False, "error": "a newspaper task is already running"}
-    threading.Thread(target=_run_np_probe, daemon=True).start()
-    return {"ok": True, "started": "probe"}
-
-
-@app.post("/api/newspaper-fetch")
-async def api_np_fetch(request: Request):
-    require(request)
-    if os.environ.get("NEWSPAPER_FETCH_ENABLED", "1") != "1":
-        return {"ok": False, "error": "Automated fetch is off. Set NEWSPAPER_FETCH_ENABLED=1 to enable."}
-    if _np["running"]:
-        return {"ok": False, "error": "a newspaper task is already running"}
-    threading.Thread(target=_run_np_fetch, daemon=True).start()
-    return {"ok": True, "started": "fetch"}
-
-
-# Sample notices for the proof-of-concept view. Real Pakistani-style tender
-# adverts, so the demo shows the actual parser and classifier at work rather
-# than a mockup. The pipeline that runs on these is the same one that runs on a
-# scanned page.
-_NP_SAMPLES = {
-    "ict": ("PITB — IT procurement",
-        "PUNJAB INFORMATION TECHNOLOGY BOARD\nTENDER NOTICE\n"
-        "Sealed bids are invited from eligible firms for the Supply, Installation "
-        "and Commissioning of SD-WAN Enabled Next Generation Firewalls and Layer-2 "
-        "Switches for the Punjab Government Data Centre.\n"
-        "Tender No. PITB/IT/2026/114. Estimated cost Rs. 45 million.\n"
-        "Bid security 2%. Last date for submission: 12-09-2026 at 11:00 AM."),
-    "connectivity": ("PAA — connectivity",
-        "PAKISTAN AIRPORTS AUTHORITY\nINVITATION FOR BIDS\n"
-        "Provision of Internet Connectivity and MPLS Services at Jinnah "
-        "International Airport, Karachi, for a period of three years.\n"
-        "Reference PAA-IT-88. Single Stage Two Envelope. "
-        "Closing date: 05-09-2026 at 03:00 PM."),
-    "software": ("NADRA — systems",
-        "NATIONAL DATABASE & REGISTRATION AUTHORITY\nNOTICE INVITING TENDER\n"
-        "Procurement of an Enterprise Document Management System with licensing, "
-        "support and integration with existing infrastructure.\n"
-        "Tender ID NADRA-HQ-DMS-31. Bid security Rs. 500,000. "
-        "Submission by 28-08-2026."),
-    "civil": ("C&W — civil works",
-        "COMMUNICATION & WORKS DEPARTMENT\nTENDER NOTICE\n"
-        "Construction of a boundary wall and allied civil works at the district "
-        "complex. Estimated cost Rs. 18 million. Bid security 2%. "
-        "Last date 09-09-2026. (Included to show what the filter correctly drops.)"),
-}
-
-
-@app.get("/api/newspaper-samples")
-def api_np_samples(request: Request):
-    require(request)
-    return {"samples": [{"id": k, "label": v[0]} for k, v in _NP_SAMPLES.items()]}
-
-
-@app.post("/api/newspaper-extract")
-async def api_np_extract(request: Request):
-    require(request)
-    body = await request.json()
-    text = (body.get("text") or "").strip()
-    sample = body.get("sample")
-    if sample and sample in _NP_SAMPLES:
-        text = _NP_SAMPLES[sample][1]
-    if not text:
-        return {"ok": False, "error": "Paste a notice or pick a sample."}
-    import newspaper, classify
-    rows = []
-    for b in newspaper.blocks(text):
-        r = newspaper.parse_block(b, "Sample", 1)
-        if not r:
-            continue
-        c = classify.classify(r.get("title", ""), "", r.get("buyer", ""))
-        rows.append({
-            "buyer": r.get("buyer", ""), "title": r.get("title", ""),
-            "closing": r.get("closing"), "ref": r.get("ref", ""),
-            "value_text": r.get("value_text", ""),
-            "lane": c["lane"], "product_line": c.get("product_line", ""),
-            "is_opportunity": c["is_opportunity"], "why": c.get("why", ""),
-        })
-    # if the block splitter found nothing, still classify the whole text so the
-    # demo always shows a result
-    if not rows:
-        c = classify.classify(text[:200], "", "")
-        rows.append({"buyer": "", "title": text[:120], "closing": None, "ref": "",
-                     "lane": c["lane"], "product_line": c.get("product_line", ""),
-                     "is_opportunity": c["is_opportunity"], "why": c.get("why", "")})
-    return {"ok": True, "raw": text, "rows": rows}
-
-
-@app.get("/newspaper", response_class=HTMLResponse)
-def newspaper_page():
-    pth = os.path.join(os.path.dirname(os.path.abspath(__file__)), "newspaper.html")
-    with open(pth, encoding="utf-8") as f:
-        return f.read()
-
-
-@app.get("/api/newspaper-status")
-def api_np_status(request: Request):
-    require(request)
-    with db.conn(readonly=True) as c:
-        cnt = c.execute("SELECT COUNT(*) FROM tenders WHERE source_tier='Newspaper'").fetchone()[0]
-    return {"running": _np["running"], "note": _np["note"], "probe": _np["probe"],
-            "enabled": os.environ.get("NEWSPAPER_FETCH_ENABLED", "0") == "1",
-            "rows": cnt}
-
-
-@app.post("/api/import")
-async def api_import(request: Request, file: UploadFile = File(...)):
-    require(request)
-    name = (file.filename or "").lower()
-    suffix = ".xlsx" if name.endswith((".xlsx", ".xlsm")) else \
-             ".csv" if name.endswith((".csv", ".tsv", ".txt")) else None
-    if not suffix:
-        return {"ok": False, "error": "Upload an .xlsx or .csv file."}
-    import tempfile, os as _os
-    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
-    tmp.write(await file.read())
-    tmp.close()
-    try:
-        rows = _rows_from_upload(tmp.name, suffix)
-    finally:
-        _os.unlink(tmp.name)
-    if not rows:
-        return {"ok": False, "error": "No rows found. Need a header row with a description or title column."}
-    import classify
-    kept = []
-    for r in rows:
-        c = classify.classify(r["title"], "", r.get("buyer"))
-        r.update(c)
-        r["source_tier"] = "Import"
-        r["ref"] = "IMP-" + str(abs(hash(r["title"] + (r.get("buyer") or ""))) % 10**10)
-        kept.append(r)
-    seen, new, changed = db.upsert(kept, source="Import")
-    opps = sum(1 for r in kept if r.get("is_opportunity"))
-    return {"ok": True, "rows": len(kept), "new": new, "updated": changed,
-            "opportunities": opps,
-            "message": f"{len(kept)} rows read, {new} new, {opps} Jazz-relevant."}
 
 
 @app.post("/api/tender-detail/{uid:path}")
@@ -999,57 +705,58 @@ def api_intelligence(request: Request, horizon: int = 540):
 
 
 @app.get("/api/analytics")
-def api_analytics(request: Request, limit: int = 4000):
-    """Point-level data for the Analytics view: one row per tender and award,
-    with a date, a value, and the dimensions you can colour by. The front end
-    does the plotting, so this stays a clean data feed the dashboard can lean on
-    as the underlying tables keep updating."""
+def api_analytics(request: Request, months: int = 18):
     require(request)
-    out = {"tenders": [], "awards": []}
-    with db.conn(readonly=True) as c:
-        for r in c.execute(f"""
-            SELECT COALESCE(advertised, first_seen, closing) d, value_num v,
-                   product_line cat, lane, buyer, source, is_opportunity opp,
-                   substr(title,1,90) title
-            FROM tenders
-            WHERE dup_of IS NULL AND COALESCE(advertised, first_seen, closing) IS NOT NULL
-            ORDER BY d DESC LIMIT ?""", (limit,)):
-            out["tenders"].append(dict(r))
-        for r in c.execute(f"""
-            SELECT award_date d, value_num v, product_line cat, lane,
-                   buyer, winner, source, is_opportunity opp, substr(title,1,90) title
-            FROM awards
-            WHERE award_date IS NOT NULL
-            ORDER BY award_date DESC LIMIT ?""", (limit,)):
-            out["awards"].append(dict(r))
-    # light server-side rollups so the cards render instantly
-    def rollup(rows, dim):
-        agg = {}
-        for r in rows:
-            k = (r.get(dim) or "Unclassified") if dim != "buyer" else (r.get("buyer") or "Unknown")
-            a = agg.setdefault(k, {"n": 0, "value": 0.0})
-            a["n"] += 1
-            a["value"] += r.get("v") or 0
-        return sorted(([k, x["n"], round(x["value"])] for k, x in agg.items()),
-                      key=lambda z: z[1], reverse=True)
-    classified = [r for r in out["tenders"] if (r.get("cat") or "").strip()]
-    out["meta"] = {
-        "tender_count": len(out["tenders"]),
-        "classified_count": len(classified),
-        "award_count": len(out["awards"]),
-        "by_category": rollup(classified, "cat")[:10],
-        "by_lane": rollup(out["tenders"], "lane"),
-        "top_buyers": rollup(out["tenders"], "buyer")[:10],
-        "award_value": round(sum(r.get("v") or 0 for r in out["awards"])),
+    return db.analytics(months=months)
+
+
+@app.post("/api/insights")
+async def api_insights(request: Request):
+    """A written read-out of the dashboard, grounded only in its numbers.
+
+    The model receives the same aggregates the charts draw, so every claim
+    it makes can be checked against a chart on the same screen.
+    """
+    require(request)
+    import json as _json, requests as _rq
+    body = await request.json()
+    key = (body.get("api_key") or os.getenv("ANTHROPIC_API_KEY", "")).strip()
+    if not key:
+        return {"text": "Add an Anthropic key in the Ask tab to generate insights."}
+    data = db.analytics()
+    intel = db.intelligence()
+    compact = {
+        "kpi": data["kpi"], "bid_window_histogram": data["window_hist"],
+        "monthly_by_lane": data["monthly"][-36:], "next_8_weeks": data["weeks"],
+        "sector_by_product_line": data["heat"], "tender_types": data["types"],
+        "top_buyers": data["top_buyers"], "award_stats": data["aw_stats"],
+        "supplier_hhi": data["hhi"], "top_suppliers": data["suppliers"],
+        "jazz_share_pct": intel["stats"].get("our_share"),
+        "defend_value": intel["stats"].get("defend_value"),
+        "attack_value": intel["stats"].get("attack_value"),
+        "overdue_buyers": intel["overdue"][:8],
     }
-    return out
-
-
-@app.get("/analytics", response_class=HTMLResponse)
-def analytics_page():
-    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "analytics.html")
-    with open(p, encoding="utf-8") as f:
-        return f.read()
+    system = ("You are a strategy analyst writing for Jazz's B2G leadership. From the "
+              "JSON provided, and nothing else, write exactly five insights. Each is "
+              "a bold one-line headline asserting something specific, followed by "
+              "one or two sentences: the evidence with figures, then the implication "
+              "for Jazz. Prioritise trends, concentration, timing and white space. "
+              "If a series is empty or too thin to support a claim, say so rather "
+              "than inferring. Plain prose, no preamble, no em dashes.")
+    try:
+        r = _rq.post("https://api.anthropic.com/v1/messages",
+                     headers={"x-api-key": key, "anthropic-version": "2023-06-01",
+                              "content-type": "application/json"},
+                     json={"model": LLM_MODEL, "max_tokens": 900, "system": system,
+                           "messages": [{"role": "user",
+                                         "content": _json.dumps(compact, default=str)}]},
+                     timeout=60)
+        j = r.json()
+        if r.status_code != 200:
+            return {"text": "Claude API error: " + j.get("error", {}).get("message", "")[:200]}
+        return {"text": "".join(b.get("text", "") for b in j.get("content", []))}
+    except Exception as e:
+        return {"text": f"Could not reach the Claude API: {type(e).__name__}"}
 
 
 @app.get("/api/overview")
@@ -1084,93 +791,6 @@ def api_export(request: Request, q: str = None, sources: str = None,
         w.writerow(r)
     return Response(content=buf.getvalue(), media_type="text/csv",
                     headers={"Content-Disposition": "attachment; filename=tenders.csv"})
-
-
-@app.get("/api/export-history")
-def api_export_history(request: Request, days: int = 365):
-    """Historical awards and tenders as a forecasting workbook.
-
-    Awards are the forecasting backbone: they carry value, buyer and date.
-    Tenders are the demand signal. Both are included over a window of at least
-    one year, enforced so the export is always a usable modelling base.
-    """
-    require(request)
-    days = max(365, int(days or 365))
-    since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
-    return _history_workbook(since, days)
-
-
-def _history_workbook(since, days):
-    import io
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment
-    from openpyxl.utils import get_column_letter
-
-    HEAD_FILL = PatternFill("solid", fgColor="0B4F5F")
-    HEAD_FONT = Font(color="FFFFFF", bold=True, size=10)
-
-    def sheet(ws, cols, rows):
-        ws.append(cols)
-        for c in range(1, len(cols) + 1):
-            cell = ws.cell(row=1, column=c)
-            cell.fill = HEAD_FILL
-            cell.font = HEAD_FONT
-            cell.alignment = Alignment(vertical="center")
-        for r in rows:
-            ws.append([r.get(k) for k in cols])
-        ws.freeze_panes = "A2"
-        if rows:
-            ws.auto_filter.ref = ws.dimensions
-        for i, k in enumerate(cols, start=1):
-            width = 42 if k == "title" else 26 if k in ("buyer", "winner") else 14
-            ws.column_dimensions[get_column_letter(i)].width = width
-
-    award_cols = ["source", "ref", "title", "buyer", "winner", "value_text",
-                  "value_num", "bids_received", "award_date", "tenure_months",
-                  "renewal_due", "lane", "product_line", "is_opportunity", "url"]
-    tender_cols = ["source", "ref", "title", "buyer", "jurisdiction", "lane",
-                   "product_line", "fit_score", "relevance", "advertised", "closing",
-                   "value_text", "value_num", "status", "url", "first_seen"]
-
-    with db.conn(readonly=True) as c:
-        awards = [dict(r) for r in c.execute(
-            f"""SELECT {','.join(award_cols)} FROM awards
-                WHERE award_date >= ? OR award_date IS NULL
-                ORDER BY award_date DESC""", (since,))]
-        tenders = [dict(r) for r in c.execute(
-            f"""SELECT {','.join(tender_cols)} FROM tenders
-                WHERE first_seen >= ? AND dup_of IS NULL
-                ORDER BY first_seen DESC""", (since,))]
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Readme"
-    for row in [
-        ("Tender Desk — historical export", ""),
-        ("Generated", datetime.now(timezone.utc).strftime("%d %b %Y %H:%M UTC")),
-        ("Window", f"{since} to today ({days} days)"),
-        ("Awards rows", len(awards)),
-        ("Tenders rows", len(tenders)),
-        ("", ""),
-        ("For forecasting", "Awards are the modelling backbone: value_num, buyer, award_date."),
-        ("Renewals", "renewal_due and tenure_months are populated only where the award notice stated a term."),
-        ("Demand", "The Tenders sheet is the leading signal: what is being sought, by whom, when."),
-    ]:
-        ws.append(row)
-    ws.column_dimensions["A"].width = 28
-    ws.column_dimensions["B"].width = 70
-
-    sheet(wb.create_sheet("Awards"), award_cols, awards)
-    sheet(wb.create_sheet("Tenders"), tender_cols, tenders)
-
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    fname = f"tender_desk_history_{datetime.now(timezone.utc).strftime('%Y%m%d')}.xlsx"
-    return Response(
-        content=buf.getvalue(),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
 
 
@@ -1284,78 +904,6 @@ async def ask(request: Request):
     if not key:
         return {"answer": "No API key set. Paste your Anthropic key in the field above."}
 
-    import re as _re, requests as _rq, json as _json
-    mode = (body.get("mode") or "ask").strip()
-    focus = (body.get("focus") or "").strip()
-
-    def _llm(system, user, max_tokens=700):
-        r = _rq.post("https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": key, "anthropic-version": "2023-06-01",
-                     "content-type": "application/json"},
-            json={"model": LLM_MODEL, "max_tokens": max_tokens, "system": system,
-                  "messages": [{"role": "user", "content": user}]}, timeout=60)
-        d = r.json()
-        if r.status_code != 200:
-            return {"answer": "Claude API error: " +
-                    d.get("error", {}).get("message", "error")[:200]}
-        text = "".join(b.get("text", "") for b in d.get("content", []))
-        chart = None
-        m = _re.search(r"```chart\s*(\{.*?\})\s*```", text, _re.S)
-        if m:
-            try:
-                chart = _json.loads(m.group(1))
-            except Exception:
-                chart = None
-            text = text[:m.start()].rstrip()
-        return {"answer": text, "chart": chart}
-
-    def _guard(fn):
-        try:
-            return fn()
-        except Exception as e:
-            return {"answer": f"Could not reach the Claude API: {type(e).__name__}"}
-
-    if mode == "summary":
-        sysp = ("You are the analyst behind Tender Desk for Jazz, a telecom operator. "
-                "From the dataset snapshot, write 2 to 3 sentences on what stands out "
-                "right now: where Jazz demand concentrates, what is rising, and one thing "
-                "to watch this week. Specific and plain, no bullet points, no preamble.")
-        return _guard(lambda: _llm(sysp, focus or "No data provided.", 350))
-
-    if mode == "explain":
-        sysp = ("You are the analyst behind Tender Desk for Jazz. Explain WHY the trend "
-                "described is happening, grounded ONLY in the rows and figures provided. "
-                "Name the specific buyers, categories or tenders driving it. Do not invent "
-                "a cause that is not visible in the data; if the rows only show what moved, "
-                "say that plainly. 2 to 4 sentences of plain prose.")
-        return _guard(lambda: _llm(sysp, f"{focus}\n\nEXPLAIN: {q}", 450))
-
-    if mode == "brief":
-        sysp = ("You are the analyst behind Tender Desk for Jazz. Write a short brief for "
-                "a salesperson on this one tender: what it is, why it fits Jazz and in which "
-                "lane, and one thing to watch. Three short sentences, plain prose, no "
-                "headings.")
-        return _guard(lambda: _llm(sysp, focus, 300))
-
-    if mode == "filter":
-        sysp = ('Convert the user request into a tender filter. Output ONLY a JSON object, '
-                'no prose and no code fence. Schema: {"lane": "Core"|"Partner-led"|"Signal"'
-                '|null, "category": string|null, "min_value": number|null, "month": '
-                '"YYYY-MM"|null, "text": string|null}. Use null for anything unspecified. '
-                'Category is one of: Connectivity, Managed Security, Cloud & Hosting, '
-                'Systems Integration, Smart City & Surveillance, Data & Analytics, '
-                'IoT & M2M, Enterprise Mobility.')
-        def _do_filter():
-            res = _llm(sysp, q, 200)
-            raw = (res.get("answer") or "").strip()
-            m = _re.search(r"\{.*\}", raw, _re.S)
-            return {"filter": _json.loads(m.group(0)) if m else {}}
-        try:
-            return _do_filter()
-        except Exception as e:
-            return {"filter": {}, "error": type(e).__name__}
-
-
     # Ground the model in the actual pipeline, not one keyword query. The
     # previous version searched on words from the question, found nothing for
     # phrasings like "what should Jazz look at", and the model then honestly
@@ -1404,13 +952,7 @@ async def ask(request: Request):
               "You are given the current open pipeline in full, so answer from it "
               "directly. Name specific tenders with buyer and closing date. Only say "
               "nothing is relevant if the lists provided are genuinely empty. Be "
-              "concise, lead with the answer, use plain prose, no bullet dumps. "
-              "When a comparison across categories, buyers, sources or time would "
-              "read better as a chart, append AFTER your prose a single fenced "
-              "block exactly like ```chart {\"type\":\"bar\",\"x\":[\"A\",\"B\"],"
-              "\"y\":[10,20],\"title\":\"...\"}``` using only numbers that appear "
-              "in the data provided. Keep x and y to at most 10 items. Omit the "
-              "block entirely when a chart would not add anything.")
+              "concise, lead with the answer, use plain prose, no bullet dumps.")
     context = (
         f"DATABASE STATS: {_json.dumps(dict(f['stats']))}\n"
         f"LANE COUNTS: {_json.dumps(f.get('lanes'))}\n"
@@ -1436,16 +978,7 @@ async def ask(request: Request):
         if r.status_code != 200:
             msg = d.get("error", {}).get("message", "API error")
             return {"answer": f"Claude API error: {msg[:200]}"}
-        text = "".join(b.get("text", "") for b in d.get("content", []))
-        chart = None
-        m = _re.search(r"```chart\s*(\{.*?\})\s*```", text, _re.S)
-        if m:
-            try:
-                chart = _json.loads(m.group(1))
-            except Exception:
-                chart = None
-            text = text[:m.start()].rstrip()
-        return {"answer": text, "chart": chart}
+        return {"answer": "".join(b.get("text", "") for b in d.get("content", []))}
     except Exception as e:
         return {"answer": f"Could not reach the Claude API: {type(e).__name__}"}
 

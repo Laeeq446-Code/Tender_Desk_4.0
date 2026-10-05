@@ -6,6 +6,7 @@
 <title>Tender Desk</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root[data-theme=light]{
@@ -116,14 +117,7 @@ a{color:inherit;text-decoration:none}
 .isnew{font-size:9px;font-weight:700;letter-spacing:.06em;background:var(--mint);color:#04231F;padding:2px 5px;border-radius:2px}
 .ttitle{font-family:'Inter Tight';font-weight:600;font-size:14.5px;line-height:1.4;margin-bottom:4px;letter-spacing:-.012em}
 .torg{font-size:12.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tside{padding:12px 14px;border-left:1px solid var(--line-2);background:var(--surface-2);display:flex;flex-direction:column;justify-content:center;gap:6px;position:relative}
-.aibrief{position:absolute;top:8px;right:10px;border:1px solid var(--line-2);background:var(--surface);border-radius:6px;cursor:pointer;font-size:12px;padding:2px 6px;line-height:1;color:#12a3b8;z-index:2}
-.aibrief:hover{background:#eefbfc;border-color:#12a3b8}
-.aibriefmodal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:200;align-items:center;justify-content:center}
-.aibriefmodal .aibm-card{background:#fff;color:#16323a;max-width:520px;margin:0 20px;border-radius:14px;padding:22px 24px;box-shadow:0 24px 70px rgba(0,0,0,.3);font-size:14px}
-.aidaily{margin:12px 0}
-.aidaily-box{background:linear-gradient(180deg,#eefbfc,#fff);border:1px solid #12a3b8;border-radius:10px;padding:12px 14px;font-size:13.5px;line-height:1.6;color:#16323a}
-.aidaily-tag{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:1.2px;color:#0f5c6b;margin-right:8px}
+.tside{padding:12px 14px;border-left:1px solid var(--line-2);background:var(--surface-2);display:flex;flex-direction:column;justify-content:center;gap:6px}
 .val{font-family:'JetBrains Mono';font-weight:600;font-size:12.5px}
 .val small{font-weight:400;color:var(--ink-3);font-size:9.5px;display:block;letter-spacing:.08em;text-transform:uppercase}
 .gauge .lbl{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-3);margin-bottom:3px}
@@ -202,6 +196,25 @@ a{color:inherit;text-decoration:none}
 .arow .ap,.arow .av,.arow .ag,.arow .ax,.arow .ar{font-family:'JetBrains Mono';font-size:11.5px;color:var(--ink-2);text-align:right}
 .arow.ahead .ap,.arow.ahead .av,.arow.ahead .ag,.arow.ahead .ax,.arow.ahead .ar{font-family:'Inter'}
 @media(max-width:900px){.arow{grid-template-columns:1fr 60px 90px;gap:8px}.arow .ab,.arow .ag,.arow .ax,.arow .ar{display:none}}
+.agrid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;margin-top:14px}
+.acard{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:14px 16px 12px;min-width:0}
+.acard h4{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:700;margin-bottom:3px}
+.acard .sub{font-size:11.5px;color:var(--ink-3);margin-bottom:10px}
+.acard .cv{position:relative;height:230px}
+.s12{grid-column:span 12}.s8{grid-column:span 8}.s6{grid-column:span 6}.s4{grid-column:span 4}
+.sect{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:700;grid-column:span 12;margin:10px 0 -4px;padding-top:10px;border-top:1px solid var(--line)}
+.heat{display:grid;gap:2px;font-size:10.5px;overflow-x:auto}
+.heat div{padding:6px 4px;text-align:center;border-radius:2px;font-family:'JetBrains Mono';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.heat .hl{text-align:left;color:var(--ink-2);font-family:'Inter';font-size:11px}
+.heat .hc{color:var(--ink-3);font-family:'Inter';font-size:9.5px;letter-spacing:.04em}
+.aicard{padding:14px 16px;margin-top:14px;border-left:3px solid var(--accent)}
+.aihead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px}
+.aihead b{font-family:'Inter Tight';font-size:14px}.aihead span{display:block;font-size:11.5px;color:var(--ink-3);margin-top:2px}
+.aitext{font-size:13.5px;line-height:1.7;color:var(--ink-2);white-space:pre-wrap}
+.aitext b{color:var(--ink)}
+.kpi .dl{font-size:11px;font-family:'JetBrains Mono';margin-top:4px}
+.badge{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:2px;margin-left:6px}
+@media(max-width:1000px){.s8,.s6,.s4{grid-column:span 12}}
 .bsec{margin-bottom:22px}
 .bsec h3{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);font-weight:700;margin-bottom:9px;display:flex;align-items:center;gap:9px}
 .bsec h3 .cnt{font-family:'JetBrains Mono';font-size:10.5px;background:var(--surface-3);color:var(--ink-2);padding:1px 6px;border-radius:2px;letter-spacing:0}
@@ -297,52 +310,22 @@ a{color:inherit;text-decoration:none}
 </div></div></main>
 
 <main class="panel" id="p-papers"><div class="wrap" style="max-width:960px">
-  <div class="lhead"><div><h2>Newspaper feed</h2><p id="npSub">Tenders pulled from newspaper e-papers. Filter like the main feed.</p></div>
-    <div class="sortbar">
-      <button class="iconbtn" onclick="npProbe()">Probe papers</button>
-      <button class="btn" style="max-width:130px" onclick="npFetch()">Fetch now</button>
+  <div class="lhead"><div><h2>Newspaper ingestion</h2><p>Read tender advertisements from an e-paper page. Preview first, then commit.</p></div></div>
+  <div class="card" style="padding:16px;margin-bottom:14px">
+    <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">
+      <select class="srch" id="npPaper" style="width:190px">
+        <option>Dawn</option><option>Business Recorder</option><option>The News</option>
+        <option>Express Tribune</option><option>The Nation</option><option>Jang</option>
+        <option>Nawaiwaqt</option><option>Other</option>
+      </select>
+      <input type="file" id="npFile" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff" style="font-size:12.5px;flex:1">
+      <button class="iconbtn" onclick="npRun(0)">Preview</button>
+      <button class="btn" style="max-width:150px" onclick="npRun(1)">Read and save</button>
     </div>
+    <p style="font-size:11.5px;color:var(--ink-3);margin-top:10px;line-height:1.65">
+      A PDF with a text layer is read directly and is accurate. A scanned page is passed through OCR, which is English only: Urdu recognition is not reliable enough to trust with closing dates. Saved rows are flagged for review. Use only material your team is licensed to hold.</p>
   </div>
-  <div class="card" style="padding:16px 18px;margin-bottom:14px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-      <div><b style="font-size:15px">Extraction preview</b>
-        <span style="font-size:11px;font-weight:700;color:#b26a00;background:#fff3e0;border-radius:999px;padding:2px 9px;margin-left:8px">SAMPLE</span>
-        <p style="font-size:12px;color:var(--ink-3);margin:4px 0 0">Illustration of how a printed tender notice becomes a structured, classified row. Pick a paper and preview.</p>
-      </div>
-    </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:14px 0 4px">
-      <label style="font-size:11px;color:var(--ink-3);display:flex;flex-direction:column;gap:4px">Newspaper
-        <select class="srch" id="npSPaper" style="width:170px">
-          <option>Dawn</option><option>The News</option><option>Business Recorder</option><option>Nawa-i-Waqt</option><option>The Nation</option></select></label>
-      <label style="font-size:11px;color:var(--ink-3);display:flex;flex-direction:column;gap:4px">Date
-        <input class="srch" type="date" id="npSDate" style="width:160px"></label>
-      <label style="font-size:11px;color:var(--ink-3);display:flex;flex-direction:column;gap:4px">Section
-        <select class="srch" id="npSSection" style="width:150px"><option>Tender notices</option><option>Classifieds</option></select></label>
-      <button class="btn" style="max-width:170px" onclick="previewExtraction()">Preview extraction</button>
-    </div>
-    <div id="npSample"></div>
-  </div>
-  <div class="card" style="padding:12px 14px;margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-    <input class="srch" id="npQ" placeholder="Search newspaper tenders…" style="flex:1;min-width:200px" oninput="npDebounce()">
-    <select class="srch" id="npScope" style="width:180px" onchange="loadNpFeed()">
-      <option value="all">All newspaper rows</option>
-      <option value="relevant">Relevant + signals</option>
-      <option value="opportunity">Jazz opportunities</option>
-    </select>
-    <select class="srch" id="npStatusSel" style="width:140px" onchange="loadNpFeed()">
-      <option value="">Any status</option>
-      <option value="open" selected>Open</option>
-      <option value="closed">Closed</option>
-    </select>
-    <select class="srch" id="npLane" style="width:150px" onchange="loadNpFeed()">
-      <option value="">Any lane</option>
-      <option value="Core">Core</option><option value="Partner-led">Partner-led</option>
-      <option value="Signal">Signal</option><option value="None">Unclassified</option>
-    </select>
-    <span id="npMsg" style="font-size:12px;color:var(--ink-3)"></span>
-  </div>
-  <div id="npFeedList"></div>
-  <button class="btn" id="npMoreBtn" style="display:none;margin:12px auto" onclick="loadNpFeed(true)">Load more</button>
+  <div id="npOut"></div>
 </div></main>
 
 <main class="panel" id="p-intel"><div class="wrap">
@@ -351,20 +334,24 @@ a{color:inherit;text-decoration:none}
       <select id="intelHz" onchange="loadIntel()">
         <option value="365">12 months</option><option value="540" selected>18 months</option>
         <option value="730">24 months</option><option value="1095">36 months</option>
-      </select>
-      <a class="btn" style="max-width:210px;margin-left:12px;padding:8px 12px" href="/api/export-history?days=365" download>Download history (Excel)</a>
-      <label class="btn" style="max-width:180px;margin-left:8px;padding:8px 12px;cursor:pointer">Import list
-        <input type="file" id="impFile" accept=".xlsx,.xlsm,.csv" style="display:none" onchange="startImport(this)">
-      </label>
-      <span id="impMsg" style="margin-left:10px;font-size:12px;color:var(--ink-3)"></span>
-      </div></div>
+      </select></div></div>
   <div id="intelBody"></div>
 </div></main>
 
 <main class="panel" id="p-overview"><div class="wrap">
-  <div class="lhead"><div><h2>Overview</h2><p>Where digital procurement is happening, and when it closes.</p></div></div>
+  <div class="lhead"><div><h2>Analytics</h2><p>Where B2G demand comes from, how it is moving, and how contested it is.</p></div>
+    <div class="sortbar"><label>Period</label>
+      <select id="anMonths" onchange="loadOverview()">
+        <option value="6">6 months</option><option value="12">12 months</option>
+        <option value="18" selected>18 months</option><option value="36">36 months</option>
+      </select></div></div>
   <div class="kpis" id="kpis"></div>
-  <div class="ogrid" id="ocards"></div>
+  <div class="card aicard" id="aiCard">
+    <div class="aihead"><div><b>AI read-out</b><span>Five insights written from the figures on this page, and only those figures.</span></div>
+      <button class="iconbtn" id="aiBtn" onclick="genInsights()">Generate</button></div>
+    <div id="aiText" class="aitext">Not generated yet.</div>
+  </div>
+  <div class="agrid" id="ocards"></div>
 </div></main>
 
 <main class="panel" id="p-contacts"><div class="wrap">
@@ -384,19 +371,15 @@ a{color:inherit;text-decoration:none}
   <div id="recOut"></div>
 </div></main>
 
-<main class="panel" id="p-settings"><div class="wrap" style="max-width:760px">
-  <div class="lhead"><div><h2>API key</h2><p>Connect Anthropic once to power the AI features across the Brief, the Feed, and Analytics. Your key stays in this browser only and is never stored on our servers.</p></div></div>
-  <div class="card" style="padding:18px">
-    <label style="font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3)">Anthropic API key</label>
-    <div style="display:flex;gap:8px;margin:8px 0 6px;align-items:center">
-      <input class="srch" id="akey" type="password" autocomplete="off" name="tdkey" placeholder="sk-ant-…" style="flex:1">
-      <button class="btn" style="width:90px" onclick="saveKeyUI()">Save</button>
-      <button class="iconbtn" onclick="clearKey()">Forget</button>
+<main class="panel" id="p-ask"><div class="wrap" style="max-width:860px">
+  <div class="lhead"><div><h2>Ask the data</h2><p>Questions are answered by Claude, grounded in the live tender database. Your API key stays in this browser only.</p></div></div>
+  <div class="card" style="padding:16px">
+    <div style="display:flex;gap:8px;margin-bottom:9px;align-items:center"><input class="srch" id="akey" type="text" autocomplete="off" name="tdkey" placeholder="Anthropic API key" style="flex:1"><span id="keyState" style="font-size:11.5px;color:var(--ink-3);white-space:nowrap"></span><button class="iconbtn" onclick="clearKey()">Forget</button></div>
+    <div style="display:flex;gap:8px">
+      <input class="srch" id="aq" placeholder="e.g. Which Core tenders close this week?" style="flex:1" onkeydown="if(event.key==='Enter')doAsk()">
+      <button class="btn" style="width:110px" onclick="doAsk()">Ask</button>
     </div>
-    <span id="keyState" style="font-size:12px;color:var(--ink-3)"></span>
-    <div style="margin-top:16px;font-size:12.5px;color:var(--ink-3);line-height:1.75">
-      This one key powers the daily brief's AI summary, the AI analyst on the Analytics tab (ask, explain, and language filtering), and the per-tender AI briefs in the feed. Get a key from console.anthropic.com. Usage is billed per question, roughly one cent each.
-    </div>
+    <div id="aout" style="margin-top:14px;font-size:14px;line-height:1.65;color:var(--ink-2);white-space:pre-wrap"></div>
   </div>
 </div></main>
 
@@ -452,7 +435,7 @@ a{color:inherit;text-decoration:none}
 </div></main>
 
 <script>
-let F={sources:[],domains:[],relevance:[],jurisdictions:[],lanes:[],status:'open',q:'',within:null,new_only:0,scope:'opportunity',date_on:''};
+let F={sources:[],domains:[],relevance:[],jurisdictions:[],lanes:[],sectors:[],ttypes:[],status:'open',q:'',within:null,new_only:0,scope:'opportunity',date_on:''};
 let FACETS=null, OPEN=[], ACTIVE='brief', OFFSET=0, TOTAL=0;
 
 const $=s=>document.querySelector(s);
@@ -472,6 +455,8 @@ function toggleTheme(){
   document.documentElement.setAttribute('data-theme',nx);
   $('#themeBtn').textContent=nx==='light'?'Dark':'Light';
   try{localStorage.setItem('td_theme',nx)}catch(e){}
+  if(ACTIVE==='overview')loadOverview();
+  if(ACTIVE==='intel')loadIntel();
 }
 try{const t=localStorage.getItem('td_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}
 
@@ -483,15 +468,15 @@ async function doLogin(){
 }
 $('#pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 
-const TAB_DEF=['brief','feed','intel','papers','overview','contacts','reconcile','filler','settings','method'];
+const TAB_DEF=['brief','feed','intel','papers','overview','contacts','reconcile','ask','filler','method'];
 function tabOrder(){
   let o=[]; try{o=JSON.parse(localStorage.getItem('td_taborder')||'[]')}catch(e){}
   o=o.filter(x=>TAB_DEF.includes(x));
   return o.concat(TAB_DEF.filter(x=>!o.includes(x)));
 }
 function saveTabOrder(o){try{localStorage.setItem('td_taborder',JSON.stringify(o))}catch(e){}}
-const TAB_LABEL={brief:'Brief',feed:'Feed',intel:'Analytics',papers:'Newspapers',overview:'Overview',contacts:'Contacts',
-  reconcile:'Reconcile',filler:'Bid filler',settings:'API key',method:'Methodology'};
+const TAB_LABEL={brief:'Brief',feed:'Feed',intel:'Intelligence',papers:'Newspapers',overview:'Analytics',contacts:'Contacts',
+  reconcile:'Reconcile',ask:'Ask',filler:'Bid filler',method:'Methodology'};
 function dragTabs(){
   let src=null;
   document.querySelectorAll('#tabs .tab[data-k]').forEach(el=>{
@@ -530,10 +515,9 @@ function go(p){
   if(p==='brief')loadBrief();
   if(p==='contacts')loadContacts();
   if(p==='overview')loadOverview();
-  if(p==='intel'){window.location.href='/analytics';return;}
-  if(p==='news')loadNpFeed();
+  if(p==='intel')loadIntel();
   if(p==='filler')loadFiller();
-  if(p==='settings')keyState();
+  if(p==='ask')keyState();
 }
 function closeTab(id){
   OPEN=OPEN.filter(x=>safeId(x.uid)!==id);
@@ -559,6 +543,8 @@ function renderFilters(){
        <input class="srch" type="date" value="${esc(F.date_on||'')}" onchange="F.date_on=this.value;refresh()">
        <p style="font-size:10.5px;color:var(--ink-3);margin-top:5px">Advertised or closing on this date.</p></div>`+
     box('Lane',f.lanes||[],'lanes')+
+    box('Buyer sector',f.sectors||[],'sectors')+
+    box('Tender type',f.ttypes||[],'ttypes')+
     `<div class="fgroup"><h4><span>Status</span></h4><div class="seg">
        <button aria-pressed="${F.status==='open'}" onclick="F.status='open';refresh()">Open</button>
        <button aria-pressed="${F.status==='closed'}" onclick="F.status='closed';refresh()">Closed</button>
@@ -580,7 +566,7 @@ function refresh(){OFFSET=0;renderFilters();loadFeed()}
 function qs(){
   const p=new URLSearchParams();
   if(F.q)p.set('q',F.q);
-  ['sources','domains','relevance','jurisdictions','lanes'].forEach(k=>{if(F[k].length)p.set(k,F[k].join(','))});
+  ['sources','domains','relevance','jurisdictions','lanes','sectors','ttypes'].forEach(k=>{if(F[k].length)p.set(k,F[k].join(','))});
   p.set('status',F.status);
   if(F.within)p.set('closing_within',F.within);
   if(F.new_only)p.set('new_only','1');
@@ -604,10 +590,9 @@ function rowHTML(r){
         ${r.is_new?'<span class="isnew">NEW</span>':''}
       </div>
       <div class="ttitle">${esc(r.title)}</div>
-      <div class="torg">${esc(r.buyer||'—')}</div>
+      <div class="torg">${esc(r.buyer_norm||r.buyer||'—')}${r.buyer_sector?` <span style="color:var(--ink-3)">· ${esc(r.buyer_sector)}</span>`:''}${r.tender_type&&r.tender_type!=='Other'?` <span style="color:var(--ink-3)">· ${esc(r.tender_type)}</span>`:''}${r.repeat_of?' <span class="ref">· re-issue</span>':''}</div>
     </div>
     <div class="tside">
-      <button class="aibrief" onclick="event.stopPropagation();feedBrief('${esc(r.uid)}')" title="AI brief">✨</button>
       <div class="val"><small>Value</small>${money(r)}</div>
       <div class="gauge ${urg(dl)}"><div class="lbl">Closes <b>${dl==null?'—':dl<0?'closed':dl+'d'}</b></div><div class="bar"><i style="width:${pct}%"></i></div></div>
     </div>
@@ -638,28 +623,6 @@ async function loadFeed(append){
   $('#moreBtn').textContent=`Load more (${TOTAL-OFFSET} remaining)`;
 }
 function loadMore(){loadFeed(true)}
-
-function _aiKeyUI(){ try{return localStorage.getItem('td_akey')||''}catch(e){return ''} }
-async function feedBrief(uid){
-  let box=document.getElementById('aiBriefModal');
-  if(!box){ box=document.createElement('div'); box.id='aiBriefModal'; box.className='aibriefmodal';
-    box.onclick=e=>{if(e.target===box)box.style.display='none'}; document.body.appendChild(box); }
-  box.style.display='flex';
-  if(!_aiKeyUI()){ box.innerHTML='<div class="aibm-card">Add your Anthropic API key on the Analytics tab to switch on AI briefs.<br><br><button class="btn" onclick="document.getElementById(\'aiBriefModal\').style.display=\'none\'">Close</button></div>'; return; }
-  box.innerHTML='<div class="aibm-card"><span style="color:#8a99a0">Writing brief\u2026</span></div>';
-  let t; try{ t=await api('/api/tender/'+encodeURIComponent(uid)); }catch(e){ box.innerHTML='<div class="aibm-card">Could not load that tender.</div>'; return; }
-  const focus='Tender: '+JSON.stringify({title:t.title,buyer:t.buyer,lane:t.lane,category:t.product_line,value:t.value_text,closing:t.closing,source:t.source});
-  let j; try{
-    const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'brief',focus,question:'brief',api_key:_aiKeyUI()})});
-    j=await r.json();
-  }catch(e){ box.innerHTML='<div class="aibm-card">Could not reach the model.</div>'; return; }
-  box.innerHTML='<div class="aibm-card"><div style="font-size:10px;font-weight:800;letter-spacing:1px;color:#12a3b8">AI TENDER BRIEF</div>'
-    +'<b style="display:block;margin:6px 0 8px">'+(t.title||'Tender')+'</b>'
-    +'<p style="margin:0;line-height:1.6">'+((j.answer||'No brief.').replace(/\n/g,'<br>'))+'</p>'
-    +'<div style="font-size:12px;color:#8a99a0;margin-top:10px">'+(t.buyer||'')+' \u00b7 '+(t.lane||'')+'</div>'
-    +'<div style="margin-top:14px;display:flex;gap:8px"><button class="btn" onclick="openTender(\''+esc(uid)+'\');document.getElementById(\'aiBriefModal\').style.display=\'none\'">Open tender</button>'
-    +'<button class="btn ghost" onclick="document.getElementById(\'aiBriefModal\').style.display=\'none\'">Close</button></div></div>';
-}
 
 async function openTender(uid){
   const id=safeId(uid);
@@ -693,7 +656,7 @@ function detailHTML(t){
         ${t.relevance&&t.relevance!=='Low'?`<span class="rel ${esc(t.relevance)}">${esc(t.relevance)}</span>`:''}
       </div>
       <h2>${esc(t.title)}</h2>
-      <div style="font-size:13px;color:var(--ink-2)">${esc(t.buyer||'—')}</div>
+      <div style="font-size:13px;color:var(--ink-2)">${esc(t.buyer_norm||t.buyer||'—')}${t.buyer_sector?' · '+esc(t.buyer_sector):''}${t.tender_type?' · '+esc(t.tender_type):''}</div>
     </div>
     <div class="facts">
       <div class="fact"><div class="k">Value</div><div class="v" style="font-size:${t.value_num?'14px':'11.5px'}">${money(t)}</div></div>
@@ -866,7 +829,6 @@ async function loadBrief(){
 
   $('#briefBody').innerHTML=
     `<div class="bhead">${esc(head)}${seenNote?`<span>${esc(seenNote)}</span>`:''}</div>
-     <div id="aiDaily" class="aidaily"></div>
      <div class="bhero">
        <div><span>Open opportunities</span><b>${s.open_opps||0}</b></div>
        <div><span>Core lane</span><b>${s.open_core||0}</b></div>
@@ -878,22 +840,9 @@ async function loadBrief(){
     sec('Closing within '+b.window.closing_days+' days',(b.closing||[]).length,closeHtml)+
     sec('Changed on the portal',(b.moved||[]).length,movedHtml)+
     `<p style="font-size:11.5px;color:var(--ink-3);margin-top:14px">Core and Partner-led lanes only. Full inventory is in the Feed tab.</p>`;
-  aiDailyBrief(b);
 }
 
-async function aiDailyBrief(b){
-  const el=document.getElementById('aiDaily'); if(!el) return;
-  if(!_aiKeyUI()){ el.innerHTML='<span class="muted" style="font-size:12px">Add your API key on the API key tab for an AI reading of today\u2019s brief.</span>'; return; }
-  el.innerHTML='<span class="muted" style="font-size:12px">Reading today\u2019s pipeline\u2026</span>';
-  const slim=(arr)=>(arr||[]).slice(0,12).map(r=>({title:r.title,buyer:r.buyer,lane:r.lane,line:r.product_line,fit:r.fit_score,days_left:r.days_left}));
-  const focus='New biddable: '+JSON.stringify(slim(b.new))+'. Closing soon: '+JSON.stringify(slim(b.closing))
-    +'. Portal changes: '+((b.moved||[]).length)+'. Open opportunities: '+((b.stats||{}).open_opps||0)+'.';
-  try{
-    const r=await api('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({mode:'summary',focus,question:'Brief the Jazz sales lead on today: what deserves attention first, why, and what to do next. Be specific about buyers and lanes.',api_key:_aiKeyUI()})});
-    el.innerHTML='<div class="aidaily-box"><span class="aidaily-tag">AI READING</span>'+((r.answer||'No reading.').replace(/\n/g,'<br>'))+'</div>';
-  }catch(e){ el.innerHTML=''; }
-}
+
 
 async function npRun(commit){
   const f=$('#npFile').files[0];
@@ -939,51 +888,19 @@ async function loadIntel(){
   const hz=document.getElementById('intelHz').value;
   let b; try{b=await api('/api/intelligence?horizon='+hz)}catch(e){return}
   const s=b.stats||{};
+  if(!s.awards){
+    $('#intelBody').innerHTML='<div class="card empty">No award history yet.<br>'+
+      'Run <b>py backfill.py --source EPMS-Awards --pages 200</b>, then add EPMS-Awards to ENABLED_SOURCES.<br>'+
+      'Every analytic on this tab is derived from contract awards.</div>';
+    return;
+  }
   const M=v=>!v?'—':(v>=1e9?'PKR '+(v/1e9).toFixed(2)+'B':v>=1e6?'PKR '+(v/1e6).toFixed(1)+'M':'PKR '+Math.round(v).toLocaleString());
   const mo=k=>k?new Date(k+'-01T00:00:00').toLocaleDateString('en-GB',{month:'short',year:'2-digit'}):'—';
 
-  // ── LIVE DEMAND, from open and recent tenders rather than awards. This half
-  // works from day one, before any award depth exists.
-  const dm=b.demand||{};
-  const dmLine=(dm.by_line||[]).slice(0,10).map(d=>`<div class="brow">
-      <span class="lb">${esc(d.product_line)}</span>
-      <span style="flex:1;font-size:12px;color:var(--ink-2)">${d.open_now} open now · ${d.seen_90d} in 90d · ${M(d.value)}</span>
-      <span class="nn" style="width:52px">${d.open_now}</span></div>`).join('');
-  const dmSoon=(dm.closing_soon||[]).slice(0,12).map(t=>`<div class="brow">
-      <span class="lb" title="${esc(t.title)}" style="width:auto;flex:1">${esc((t.title||'').slice(0,68))}</span>
-      <span style="font-size:11px;color:var(--ink-3);width:150px">${esc((t.buyer||'').slice(0,26))}</span>
-      <span class="nn" style="width:92px;color:var(--amber)">${esc(t.closing||'')}</span></div>`).join('');
-  const demandHtml=(dmLine||dmSoon)?`<div class="card ocard" style="margin-bottom:14px">
-      <h4>Live demand · open and recent tenders, not awards</h4>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:8px 0">
-        <div><div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">BY PRODUCT LINE</div>${dmLine||'<div class="bnil">No open opportunities in the last 90 days.</div>'}</div>
-        <div><div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">CLOSING WITHIN 21 DAYS</div>${dmSoon||'<div class="bnil">Nothing closing in the next 21 days.</div>'}</div>
-      </div></div>`:'';
-
-  const bfCard=`<div class="card" style="padding:16px;margin-bottom:14px;border-color:var(--accent)">
-      <b>Restore award history</b><br>
-      <span style="color:var(--ink-2);font-size:13px">Award based views below, who holds contracts and when they renew, fill from a one-time archive sweep. It runs in the background and resumes on its own if interrupted, so you can close this tab.</span><br>
-      <button class="btn" style="max-width:210px;margin-top:10px" onclick="startBackfill()">Restore award history</button>
-      <span id="bfMsg" style="margin-left:10px;font-size:12px;color:var(--ink-3)"></span></div>`;
-
-  if(!s.awards){
-    $('#intelBody').innerHTML=demandHtml+bfCard+
-      '<div class="bnil">Award based views appear once the sweep above has run. The live demand shown is from open tenders and is current.</div>';
-    return;
-  }
-
   // ── headline: share of the market we can see, and what is in play
-  let head=`Across ${s.awards} awards worth ${M(s.total_value)} from ${s.buyers} buyers`;
-  if(s.history_from) head+=` since ${esc(s.history_from)}`;
-  head+='. ';
-  if(s.our_share>0){
-    head+=`Jazz holds ${s.our_share}% by value. `;
-    if(s.defend_value>0) head+=`${M(s.defend_value)} of that renews in this horizon and must be defended. `;
-  } else {
-    head+=`Jazz holds no awarded share in this set, so every contract here is contestable. `;
-  }
-  if(s.attack_value>0) head+=`${M(s.attack_value)} sits with competitors and returns to market in the same window.`;
-  else head+=`Renewal timing appears as contract terms are captured from award wording; most rows here are one-off purchases with no stated term.`;
+  const head=`Across ${s.awards} awards worth ${M(s.total_value)} from ${s.buyers} buyers since ${esc(s.history_from||'—')}, `+
+    `Jazz holds ${s.our_share}% by value. ${M(s.defend_value)} of that comes up for renewal in this horizon and must be defended. `+
+    `${M(s.attack_value)} sits with competitors and returns to market in the same window.`;
 
   // ── account map: share of wallet per buyer
   const acct=(b.accounts||[]).map(a=>{
@@ -1028,7 +945,7 @@ async function loadIntel(){
         ${r.product_line?`<span class="dom">${esc(r.product_line)}</span>`:''}
         ${r.incumbent?`<span class="ref">incumbent ${esc(r.incumbent)}</span>`:''}
         <span class="ref">${r.bids_received?r.bids_received+' bidders last time':'bidders not published'}</span>
-        <span class="ref">${r.tenure_months||'?'}m term</span></div>
+        <span class="ref">${r.tenure_months||'?'}m term${r.tenure_basis==='assumed'?' (assumed)':r.tenure_basis==='stated'?' (stated)':''}</span></div>
         <div class="ttitle">${esc(r.title)}</div>
         <div class="torg">${esc(r.buyer||'')}${r.winner?' · won by '+esc(r.winner):''}</div></div>
       <div class="tside"><div class="val"><small>${tone==='red'?'Expires':'Back to market'}</small>${esc(r.renewal_due)}</div>
@@ -1084,166 +1001,129 @@ async function loadIntel(){
          ${riv}</div></div>
 
      <div class="ogrid">
+       ${(b.sectors&&b.sectors.length)?`<div class="card ocard"><h4>Award market by buyer sector · Jazz share</h4><div style="padding:10px 0">${b.sectors.map(x=>{const pct=x.value?Math.round(100*(x.ours||0)/x.value):0;return `<div class="brow"><span class="lb">${esc(x.sector)}</span><span class="g"><i style="width:${Math.max(3,100*x.value/Math.max(1,b.sectors[0].value))}%"></i></span><span class="nn" style="width:96px">${M(x.value)}</span><span class="nn" style="width:46px;color:${pct?'var(--mint)':'var(--ink-3)'}">${pct}%</span></div>`}).join('')}</div></div>`:''}
        <div class="card ocard"><h4>Renewal calendar · green is ours, blue is contestable</h4><div style="padding:10px 0">${calHtml}</div></div>
        ${priceHtml?`<div class="card ocard"><h4>Price bands and contest level from awards</h4><div style="padding:8px 0">${priceHtml}</div></div>`:''}
      </div>
      <p style="font-size:11.5px;color:var(--ink-3);margin-top:16px;line-height:1.7">
-       Every award figure derives from published contract awards. Renewal dates are inferred from the contract term stated in the award wording, for example "for a period of three (03) years", so treat them as planning signals rather than commitments. Share of wallet reflects only awards this database has collected, not total buyer spend. Supplier names are consolidated across spelling variants. Live demand is drawn from open and recent tenders.</p>`;
-  $('#intelBody').insertAdjacentHTML('afterbegin', demandHtml);
+       Every figure derives from published contract awards. Renewal dates use the contract term stated in the award wording where one exists, for example "for a period of three (03) years". Where none is stated, recurring service contracts are assumed to run 12 months and are labelled as assumed. One-off supply contracts receive no renewal date. Treat all of them as planning signals rather than commitments. Share of wallet reflects only awards this database has collected, not total buyer spend. Supplier names are consolidated across spelling variants.</p>`;
 }
 
-let NPOFF=0, NPTOTAL=0, npTimer=null;
-function npDebounce(){clearTimeout(npTimer);npTimer=setTimeout(()=>loadNpFeed(),350)}
-async function loadNpFeed(append){
-  const p=new URLSearchParams();
-  p.set('tiers','Newspaper');
-  const q=($('#npQ')&&$('#npQ').value||'').trim(); if(q)p.set('q',q);
-  p.set('scope',($('#npScope')&&$('#npScope').value)||'all');
-  const st=($('#npStatusSel')&&$('#npStatusSel').value)||''; if(st)p.set('status',st);
-  const ln=($('#npLane')&&$('#npLane').value)||''; if(ln)p.set('lanes',ln);
-  p.set('digital_only','0'); p.set('sort','closing');
-  p.set('limit','60'); p.set('offset',append?NPOFF:0);
-  let d; try{d=await api('/api/tenders?'+p)}catch(e){return}
-  NPTOTAL=d.total;
-  if($('#npSub'))$('#npSub').textContent=d.total+' newspaper tenders match. Filter like the main feed.';
-  if(!d.rows.length&&!append){
-    $('#npFeedList').innerHTML='<div class="card empty">No newspaper tenders yet.<br>Run <b>Probe papers</b> to see which resolve today, then <b>Fetch now</b> to pull them in.</div>';
-    $('#npMoreBtn').style.display='none';return;
-  }
-  const h=d.rows.map(rowHTML).join('');
-  if(append){$('#npFeedList').insertAdjacentHTML('beforeend',h)}else{$('#npFeedList').innerHTML=h}
-  NPOFF=(append?NPOFF:0)+d.rows.length;
-  $('#npMoreBtn').style.display=NPOFF<NPTOTAL?'block':'none';
-  $('#npMoreBtn').textContent='Load more ('+(NPTOTAL-NPOFF)+' remaining)';
+let CH={};
+function cvar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()||'#888'}
+function mkChart(id,cfg){
+  if(CH[id])CH[id].destroy();
+  const el=document.getElementById(id); if(!el||typeof Chart==='undefined')return;
+  const ink=cvar('--ink-3'), line=cvar('--line');
+  Chart.defaults.font.family="'Inter',system-ui,sans-serif"; Chart.defaults.font.size=11;
+  Chart.defaults.color=ink;
+  cfg.options=Object.assign({responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{boxWidth:10,boxHeight:10,usePointStyle:true}}},
+    scales:cfg.type==='doughnut'?undefined:{
+      x:{grid:{display:false},ticks:{color:ink},stacked:!!cfg.stacked},
+      y:{grid:{color:line},ticks:{color:ink},beginAtZero:true,stacked:!!cfg.stacked}}},cfg.options||{});
+  CH[id]=new Chart(el,cfg);
 }
-const NP_SAMPLES=[
-  {raw:"GOVERNMENT OF PUNJAB — TENDER NOTICE\nSealed bids invited for Supply, Installation & Commissioning of SD-WAN enabled Next Generation Firewalls and Layer-2 switches for the Punjab Data Centre. Est. cost Rs. 45.0 M. Last date: {d1} at 11:00 AM.",
-   buyer:"Punjab Information Technology Board", title:"SD-WAN & Next-Gen Firewalls, Data Centre network", lane:"Core", cat:"Managed Security", value:"Rs 45.0M"},
-  {raw:"PAKISTAN RAILWAYS — INVITATION FOR BIDS\nProvision of Internet Bandwidth and MPLS connectivity across divisional offices for 03 years. Bid security 2%. Closing: {d2}.",
-   buyer:"Pakistan Railways", title:"Internet Bandwidth & MPLS connectivity, 3 years", lane:"Core", cat:"Connectivity", value:"—"},
-  {raw:"HEALTH DEPARTMENT — NIT No. 214\nProcurement, installation and commissioning of CCTV surveillance solution and public address system for the new district facility. Single stage two envelope. Submission: {d3}.",
-   buyer:"District Health Authority", title:"CCTV surveillance solution & PA system", lane:"Partner-led", cat:"Smart City & Surveillance", value:"Rs 12.6M"},
-  {raw:"NATIONAL BANK — CORRIGENDUM\nProcurement of Website Hosting and DDOS Protection Services (Ref P62807). Revised submission date {d1}.",
-   buyer:"National Bank of Pakistan", title:"Website Hosting & DDOS Protection Services", lane:"Core", cat:"Cloud & Hosting", value:"—"}
-];
-function _laneColor(l){return l==='Core'?'l-Core':l==='Partner-led'?'l-Partnerled':l==='Signal'?'l-Signal':'l-None';}
-function previewExtraction(){
-  const paper=$('#npSPaper').value, date=$('#npSDate').value||new Date().toISOString().slice(0,10);
-  const dd=new Date(date), fmt=n=>{const x=new Date(dd);x.setDate(x.getDate()+n);return x.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});};
-  const rows=NP_SAMPLES.map(s=>({...s, raw:s.raw.replace('{d1}',fmt(10)).replace('{d2}',fmt(14)).replace('{d3}',fmt(7))}));
-  const cards=rows.map(r=>`
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:12px">
-      <div style="background:#f7f4ee;padding:14px 16px;border-right:1px solid var(--line)">
-        <div style="font-size:9.5px;font-weight:700;color:#9a8f7a;letter-spacing:1px;margin-bottom:6px">${paper.toUpperCase()} · PRINT NOTICE (OCR)</div>
-        <div style="font-family:Georgia,serif;font-size:12px;color:#3a352c;line-height:1.5;white-space:pre-wrap">${r.raw}</div>
-      </div>
-      <div style="padding:14px 16px">
-        <div style="font-size:9.5px;font-weight:700;color:var(--brand,#0f5c6b);letter-spacing:1px;margin-bottom:8px">EXTRACTED &amp; CLASSIFIED →</div>
-        <div style="font-weight:650;font-size:13.5px;color:var(--ink);margin-bottom:8px">${r.title}</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
-          <span class="lanepill ${_laneColor(r.lane)}">${r.lane}</span>
-          <span style="font-size:11px;background:#eef2f4;color:#5e7178;border-radius:999px;padding:2px 9px">${r.cat}</span>
-        </div>
-        <table style="font-size:11.5px;color:var(--ink-2);border:0"><tbody style="border:0">
-          <tr><td style="border:0;padding:2px 8px 2px 0;color:var(--ink-3)">Buyer</td><td style="border:0">${r.buyer}</td></tr>
-          <tr><td style="border:0;padding:2px 8px 2px 0;color:var(--ink-3)">Value</td><td style="border:0">${r.value}</td></tr>
-          <tr><td style="border:0;padding:2px 8px 2px 0;color:var(--ink-3)">Source</td><td style="border:0">Newspaper · ${paper}</td></tr>
-        </tbody></table>
-      </div>
-    </div>`).join('');
-  $('#npSample').innerHTML=`<div style="margin-top:14px">
-    <p style="font-size:12px;color:var(--ink-3);margin:0 0 10px">Sample only. Shows the pipeline: OCR the printed notice on the left, parse and classify into a structured row on the right. Live fetch fills the feed below the same way.</p>
-    ${cards}</div>`;
-}
-async function npProbe(){
-  const m=$('#npMsg'); if(m)m.textContent='Probing papers…';
-  try{
-    const r=await api('/api/newspaper-probe',{method:'POST'});
-    if(!r.ok){if(m)m.textContent=r.error||'Could not start';return}
-    const poll=setInterval(async()=>{
-      const s=await api('/api/newspaper-status');
-      if(!s.running){clearInterval(poll);
-        const ok=(s.probe||[]).filter(x=>x.ok).map(x=>x.paper);
-        const no=(s.probe||[]).filter(x=>!x.ok).map(x=>x.paper);
-        if(m)m.innerHTML='Resolved: <b>'+(ok.join(', ')||'none')+'</b>'+(no.length?' · not today: '+no.join(', '):'');
-      }
-    },3000);
-  }catch(e){if(m)m.textContent='Probe failed.'}
-}
-async function npFetch(){
-  const m=$('#npMsg'); if(m)m.textContent='Fetching editions…';
-  try{
-    const r=await api('/api/newspaper-fetch',{method:'POST'});
-    if(!r.ok){if(m)m.textContent=r.error||'Could not start';return}
-    const poll=setInterval(async()=>{
-      const s=await api('/api/newspaper-status');
-      if(!s.running){clearInterval(poll); if(m)m.textContent=(s.note||'done')+'.'; loadNpFeed();}
-    },4000);
-  }catch(e){if(m)m.textContent='Fetch failed.'}
-}
-
-async function startImport(inp){
-  const m=document.getElementById('impMsg');
-  const f=inp.files&&inp.files[0]; if(!f) return;
-  if(m)m.textContent='Uploading '+f.name+'…';
-  try{
-    const fd=new FormData(); fd.append('file',f);
-    const r=await fetch('/api/import',{method:'POST',body:fd});
-    if(r.status===401){$('#gate').style.display='grid'; if(m)m.textContent='Please sign in again.'; return;}
-    const j=await r.json();
-    if(!j.ok){ if(m)m.textContent=j.error||'Import failed'; }
-    else { if(m)m.textContent=j.message+' Refreshing…'; setTimeout(()=>loadIntel(),1200); }
-  }catch(e){ if(m)m.textContent='Import failed.'; }
-  inp.value='';
-}
-
-async function startBackfill(){
-  const m=document.getElementById('bfMsg');
-  if(m)m.textContent='Starting…';
-  try{
-    const r=await api('/api/backfill',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({source:'EPMS-Awards',pages:200})});
-    if(!r.ok){ if(m)m.textContent=r.error||'Could not start'; return; }
-    if(m)m.textContent='Running in the background. This can take a while. You can leave this page.';
-    const poll=setInterval(async()=>{
-      try{
-        const st=await api('/api/backfill-status');
-        if(st && !st.running){ clearInterval(poll); if(m)m.textContent='Done. Refreshing…'; setTimeout(()=>loadIntel(),1200); }
-      }catch(e){ clearInterval(poll); }
-    },5000);
-  }catch(e){ if(m)m.textContent='Could not start the backfill.'; }
-}
+const PKR=v=>!v?'—':(v>=1e9?'PKR '+(v/1e9).toFixed(2)+'B':v>=1e6?'PKR '+(v/1e6).toFixed(1)+'M':'PKR '+Math.round(v/1e3)+'k');
+const MON=k=>k?new Date(k+'-01T00:00:00').toLocaleDateString('en-GB',{month:'short',year:'2-digit'}):'';
 
 async function loadOverview(){
-  const o=await api('/api/overview'); const s=FACETS.stats;
+  const mo=document.getElementById('anMonths').value;
+  let a; try{a=await api('/api/analytics?months='+mo)}catch(e){return}
+  const k=a.kpi||{}, LC={Core:cvar('--mint'),'Partner-led':cvar('--amber'),Signal:cvar('--ink-3')};
+  const d7=(k.new_7d||0)-(k.new_prev_7d||0);
+  const valued=k.open_opps?Math.round(100*(k.valued||0)/k.open_opps):0;
   $('#kpis').innerHTML=[
-    ['Total tracked',s.total],['Digital',s.digital],['Open digital',s.open_digital],
-    ['Closing 7d',s.closing_week],['High relevance',s.high_rel],['New',s.new_digital]
-  ].map(([k,v])=>`<div class="kpi"><div class="k">${k}</div><div class="v">${v||0}</div></div>`).join('');
+    ['Open opportunities',k.open_opps||0,''],
+    ['Open in Core lane',k.open_core||0,''],
+    ['Disclosed open value',PKR(k.open_value),`<div class="dl" style="color:var(--ink-3)">${valued}% of open have a value</div>`],
+    ['New this week',k.new_7d||0,`<div class="dl" style="color:${d7>=0?'var(--mint)':'var(--red)'}">${d7>=0?'+':''}${d7} vs prior week</div>`],
+    ['Median bid window',k.median_window!=null?k.median_window+'d':'—',''],
+    ['Buyers tracked',k.buyers||0,`<div class="dl" style="color:var(--ink-3)">${k.tracked||0} tenders stored</div>`]
+  ].map(([t,v,x])=>`<div class="kpi"><div class="k">${t}</div><div class="v" style="${String(v).length>8?'font-size:18px':''}">${v}</div>${x}</div>`).join('');
 
-  const bars=(title,rows,val='n')=>{
-    if(!rows||!rows.length)return '';
-    const max=Math.max(...rows.map(r=>r[val]||0),1);
-    return `<div class="card ocard"><h4>${title}</h4>${rows.slice(0,10).map(r=>
-      `<div class="brow"><span class="lb" title="${esc(r.k)}">${esc(r.k||'—')}</span>
-       <span class="g"><i style="width:${Math.max(3,(r[val]/max*100))}%"></i></span>
-       <span class="nn">${r[val]||0}</span></div>`).join('')}</div>`;
-  };
-  const cal=o.calendar||[]; const cmax=Math.max(...cal.map(c=>c.n),1);
-  const days=[];
-  for(let i=0;i<30;i++){
-    const d=new Date(); d.setDate(d.getDate()+i);
-    const iso=d.toISOString().slice(0,10);
-    const hit=cal.find(c=>c.k===iso);
-    days.push(`<div class="cday" title="${iso}${hit?': '+hit.n+' closing':''}" ${hit?`style="background:var(--accent);opacity:${(.3+.7*(hit.n/cmax)).toFixed(2)}"`:''}>${hit?`<span>${hit.n}</span>`:''}</div>`);
-  }
+  const card=(id,span,title,sub,body)=>`<div class="acard ${span}"><h4>${title}</h4><div class="sub">${sub}</div>${body||`<div class="cv"><canvas id="${id}"></canvas></div>`}</div>`;
+
+  // heatmap: sector x product line
+  const sec={},pl={};
+  (a.heat||[]).forEach(r=>{sec[r.s]=(sec[r.s]||0)+r.n;pl[r.p]=(pl[r.p]||0)+r.n});
+  const S=Object.keys(sec).sort((x,y)=>sec[y]-sec[x]).slice(0,9), PL=Object.keys(pl).sort((x,y)=>pl[y]-pl[x]).slice(0,9);
+  const hmax=Math.max(1,...(a.heat||[]).map(r=>r.n));
+  const cell=(s,p)=>((a.heat||[]).find(r=>r.s===s&&r.p===p)||{}).n||0;
+  const heat=S.length?`<div class="heat" style="grid-template-columns:150px repeat(${PL.length},minmax(58px,1fr))">
+    <div></div>${PL.map(p=>`<div class="hc" title="${esc(p)}">${esc(p)}</div>`).join('')}
+    ${S.map(s=>`<div class="hl" title="${esc(s)}">${esc(s)}</div>`+PL.map(p=>{const n=cell(s,p),o=n?(.12+.88*n/hmax):0;
+      return `<div style="background:${n?`rgba(15,158,140,${o.toFixed(2)})`:'var(--surface-2)'};color:${o>.55?'#fff':'var(--ink-2)'}">${n||''}</div>`}).join('')).join('')}</div>`
+    :'<div class="bnil">No classified opportunities yet.</div>';
+
+  const hhi=a.hhi, hhiTxt=hhi==null?'no award data':hhi<1500?'competitive':hhi<2500?'moderately concentrated':'highly concentrated',
+        hhiCol=hhi==null?'var(--ink-3)':hhi<1500?'var(--mint)':hhi<2500?'var(--amber)':'var(--red)';
+  const as=a.aw_stats||{};
+
   $('#ocards').innerHTML=
-    bars('By digital domain',o.by_domain)+
-    bars('By source',o.by_source)+
-    bars('Top buyers (digital)',o.by_buyer,'dig')+
-    bars('By value band',o.value_bands)+
-    `<div class="card ocard"><h4>Closing calendar — next 30 days</h4><div class="cal">${days.join('')}</div></div>`+
-    bars('Advertised by month',(o.monthly||[]).slice().reverse());
+    card('cFlow','s8','Opportunity flow by month','Tenders entering each lane, by month advertised')+
+    card('cLane','s4','Lane mix','Share of classified tenders in the period')+
+    card('cWeeks','s6','Closing in the next eight weeks','Biddable deadlines by week, the workload ahead')+
+    card('cWin','s6','Bid window length','Days between advertisement and closing. Short windows reward early visibility')+
+    card('','s12','Where demand sits','Biddable tenders by buyer sector and Jazz product line. Darker cells are denser demand',heat)+
+    card('cType','s6','Tender type','All biddable tenders against those still open')+
+    card('cBuy','s6','Most active buyers','Biddable tenders per organisation, Core lane highlighted')+
+    `<div class="sect">Award market · ${as.n||0} awards · ${PKR(as.v)} · average ${as.avg_bids||'—'} bidders · ${as.single||0} single-bid</div>`+
+    card('cAw','s8','Awarded value by month','Value signed each month, with award count')+
+    card('cBids','s4','Bidders per award','How contested awards were. One bidder means an uncontested award')+
+    card('cSup','s6',`Supplier concentration <span class="badge" style="background:${hhiCol};color:#fff">HHI ${hhi??'—'}</span>`,
+         `Share of biddable-lane award value by supplier. The index reads as ${hhiTxt}`)+
+    card('cJur','s6','Jurisdiction','Where biddable tenders originate');
+
+  // flow
+  const months=[...new Set((a.monthly||[]).map(r=>r.m))].sort();
+  const ser=l=>months.map(m=>((a.monthly||[]).find(r=>r.m===m&&r.lane===l)||{}).n||0);
+  mkChart('cFlow',{type:'bar',stacked:true,data:{labels:months.map(MON),datasets:
+    ['Core','Partner-led','Signal'].map(l=>({label:l,data:ser(l),backgroundColor:LC[l],borderRadius:2}))}});
+  const tot=l=>ser(l).reduce((x,y)=>x+y,0);
+  mkChart('cLane',{type:'doughnut',data:{labels:['Core','Partner-led','Signal'],datasets:[{data:['Core','Partner-led','Signal'].map(tot),
+    backgroundColor:['Core','Partner-led','Signal'].map(l=>LC[l]),borderWidth:0}]},options:{cutout:'64%',plugins:{legend:{position:'bottom'}}}});
+  // weeks
+  const wks=[...new Set((a.weeks||[]).map(r=>r.wk))].sort();
+  const wlab=wks.map(w=>{const r=(a.weeks||[]).find(x=>x.wk===w);return r?new Date(r.wk_start).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}):w});
+  mkChart('cWeeks',{type:'bar',stacked:true,data:{labels:wlab,datasets:['Core','Partner-led'].map(l=>({label:l,
+    data:wks.map(w=>((a.weeks||[]).find(r=>r.wk===w&&r.lane===l)||{}).n||0),backgroundColor:LC[l],borderRadius:2}))}});
+  mkChart('cWin',{type:'bar',data:{labels:(a.window_hist||[]).map(r=>r.k),datasets:[{label:'Tenders',
+    data:(a.window_hist||[]).map(r=>r.n),backgroundColor:(a.window_hist||[]).map((r,i)=>i<2?cvar('--red'):cvar('--accent')),borderRadius:2}]},
+    options:{plugins:{legend:{display:false}}}});
+  mkChart('cType',{type:'bar',data:{labels:(a.types||[]).map(r=>r.k),datasets:[
+    {label:'All',data:(a.types||[]).map(r=>r.n),backgroundColor:cvar('--line'),borderRadius:2},
+    {label:'Open',data:(a.types||[]).map(r=>r.open_n),backgroundColor:cvar('--accent'),borderRadius:2}]},options:{indexAxis:'y'}});
+  const tb=a.top_buyers||[];
+  mkChart('cBuy',{type:'bar',stacked:true,data:{labels:tb.map(r=>(r.k||'').slice(0,34)),datasets:[
+    {label:'Core',data:tb.map(r=>r.core_n),backgroundColor:LC.Core,borderRadius:2},
+    {label:'Other biddable',data:tb.map(r=>r.n-r.core_n),backgroundColor:LC['Partner-led'],borderRadius:2}]},options:{indexAxis:'y'}});
+  // awards
+  const am=a.aw_month||[];
+  mkChart('cAw',{type:'bar',data:{labels:am.map(r=>MON(r.m)),datasets:[
+    {type:'bar',label:'Value (PKR M)',data:am.map(r=>+(r.v/1e6).toFixed(1)),backgroundColor:cvar('--accent'),borderRadius:2,yAxisID:'y'},
+    {type:'line',label:'Awards',data:am.map(r=>r.n),borderColor:cvar('--amber'),backgroundColor:cvar('--amber'),tension:.3,yAxisID:'y1'}]},
+    options:{scales:{y:{beginAtZero:true,grid:{color:cvar('--line')}},y1:{position:'right',beginAtZero:true,grid:{display:false}},x:{grid:{display:false}}}}});
+  mkChart('cBids',{type:'bar',data:{labels:(a.bids||[]).map(r=>r.k),datasets:[{label:'Awards',data:(a.bids||[]).map(r=>r.n),
+    backgroundColor:(a.bids||[]).map(r=>r.k==='1'?cvar('--red'):cvar('--accent')),borderRadius:2}]},options:{plugins:{legend:{display:false}}}});
+  const sp=a.suppliers||[], rest=Math.max(0,(a.supplier_total||0)-sp.reduce((x,y)=>x+y.v,0));
+  const pal=[cvar('--accent'),cvar('--mint'),cvar('--amber'),'#7C6BD6','#C97C3A','#3D7EA6','#B5566E','#2F8F63'];
+  mkChart('cSup',{type:'doughnut',data:{labels:sp.map(r=>(r.k||'').slice(0,28)).concat(rest?['All others']:[]),
+    datasets:[{data:sp.map(r=>r.v).concat(rest?[rest]:[]),backgroundColor:pal.concat([cvar('--line')]),borderWidth:0}]},
+    options:{cutout:'58%',plugins:{legend:{position:'right'},tooltip:{callbacks:{label:c=>`${c.label}: ${PKR(c.raw)}`}}}}});
+  mkChart('cJur',{type:'doughnut',data:{labels:(a.juris||[]).map(r=>r.k),datasets:[{data:(a.juris||[]).map(r=>r.n),
+    backgroundColor:pal,borderWidth:0}]},options:{cutout:'58%',plugins:{legend:{position:'right'}}}});
+}
+
+async function genInsights(){
+  const b=document.getElementById('aiBtn'), t=document.getElementById('aiText');
+  let key=''; try{key=localStorage.getItem('td_akey')||''}catch(e){}
+  b.textContent='Writing…'; t.textContent='Reading the dashboard figures…';
+  try{
+    const r=await api('/api/insights',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key})});
+    t.innerHTML=esc(r.text||'').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+  }catch(e){t.textContent='Request failed.'}
+  b.textContent='Regenerate';
 }
 
 async function loadContacts(){
@@ -1252,7 +1132,7 @@ async function loadContacts(){
     const init=(b.buyer||'').replace(/[^A-Za-z ]/g,'').split(' ').filter(Boolean).slice(0,3).map(w=>w[0]).join('').toUpperCase()||'—';
     return `<div class="inst">
       <div class="insthead"><div class="crest" style="background:${sc(b.source)}">${esc(init)}</div>
-        <div><h3>${esc((b.buyer||'').slice(0,70))}</h3><div class="sub">${esc(b.jurisdiction||'')} · ${esc(b.source||'')}</div></div></div>
+        <div><h3>${esc((b.buyer||'').slice(0,70))}</h3><div class="sub">${esc(b.sector||'')} · ${esc(b.jurisdiction||'')} · ${esc(b.source||'')}</div></div></div>
       <div class="cbody">
         <div class="row"><span>Contact</span>${esc(b.contact_name||'Not published')}</div>
         <div class="row"><span>Email</span>${esc(b.contact_email||'Not published')}</div>
@@ -1434,7 +1314,6 @@ function keyState(){
   const inp=document.getElementById('akey');
   if(inp){inp.value=''; inp.placeholder=has?'Key saved. Type a new one to replace it.':'Anthropic API key'}
 }
-function saveKeyUI(){const el=document.getElementById('akey');const v=el?el.value.trim():'';if(!v){keyState();return;}try{localStorage.setItem('td_akey',v)}catch(e){}if(el)el.value='';keyState();}
 function clearKey(){try{localStorage.removeItem('td_akey')}catch(e){} keyState()}
 
 async function loadFiller(){

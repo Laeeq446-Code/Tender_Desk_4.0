@@ -3,6 +3,3 @@ __pycache__/
 .env
 *.db-wal
 *.db-shm
-
-tenders.db
-epapers/_processed/

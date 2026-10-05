@@ -284,3 +284,32 @@ consecutive empty IDs, which marks the bottom of the range.
 Awards are stored in a separate table and drive the Intelligence tab. Run
 `--source EPMS-Awards` early: renewal forecasting needs award history, and
 depth compounds only from the day collection begins.
+
+
+---
+
+## Version 5.0 changes
+
+Upgrading from 4.x needs no database wipe. On first start the app adds any
+missing columns, then re-runs the classifier over every stored row.
+
+Fixed: classifier stems (call centre, data centre, SOC were never matched);
+civil duct works and fibre lasers read as Connectivity; search crashed on any
+slash, apostrophe or hyphen; classifier changes never reached stored rows;
+undated notices counted as open forever; repeat detection never fired;
+sessions lost on every restart; database directory not created; awards
+adapter never returned rows.
+
+Added: buyer sector and tender type dimensions, with filters and overview
+charts; buyer names normalised to the real organisation; detail prefetch for
+live biddable tenders after each scan; awards rebuilt on the proven Phase 1
+parser with bidder counts and signing dates; renewal terms labelled stated
+or assumed; award market by sector; monthly award history sweep:
+
+    py backfill.py --source EPMS-Awards --months 24
+
+New optional variables: SESSION_SECRET, DETAIL_PER_SCAN (default 30).
+
+## Version 5.1 · Analytics
+
+Overview is now Analytics, built on Chart.js with a period selector: KPI strip with week-on-week momentum and value-disclosure rate; opportunity flow by month and lane; lane mix; deadlines in the next eight weeks; bid-window distribution; a sector-by-product-line demand heatmap; tender types; most active buyers; and an award market section with value by month, bidders per award, and supplier concentration (Herfindahl-Hirschman Index). An AI read-out writes five insights grounded only in the figures on the page, using the key saved in the Ask tab. Classifier 5.1 reclassifies on startup.

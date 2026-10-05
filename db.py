@@ -21,12 +21,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
-_DEFAULT_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tenders.db")
-# Anchor the default to the code's own folder. Without this, launching the
-# server from a different working directory silently reads (and creates) a
-# blank tenders.db there, which is why a populated Intelligence tab can show
-# empty. An explicit DB_PATH still wins, and takes an absolute path on hosts.
-DB_PATH = os.getenv("DB_PATH") or _DEFAULT_DB
+DB_PATH = os.getenv("DB_PATH", "tenders.db")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS tenders (
@@ -170,10 +165,107 @@ def conn(readonly=False):
         c.close()
 
 
+# Columns added after the original schema. init() adds any that are missing,
+# so a schema change never again requires wiping the volume.
+MIGRATIONS = {
+    "tenders": [("buyer_norm", "TEXT"), ("buyer_sector", "TEXT"),
+                ("tender_type", "TEXT"), ("dup_of", "TEXT"),
+                ("needs_review", "INTEGER DEFAULT 0")],
+    "awards": [("buyer_norm", "TEXT"), ("buyer_sector", "TEXT"),
+               ("tenure_basis", "TEXT"), ("signing_date", "TEXT")],
+}
+
+OPEN_SQL = ("(closing >= date('now') OR (closing IS NULL AND "
+            "COALESCE(advertised, substr(first_seen,1,10)) >= date('now','-45 day')))")
+
+
+def _ensure_dir():
+    d_ = os.path.dirname(os.path.abspath(DB_PATH))
+    if d_ and not os.path.isdir(d_):
+        os.makedirs(d_, exist_ok=True)
+
+
 def init():
+    _ensure_dir()
     with conn() as c:
         c.executescript(SCHEMA)
         c.executescript(FTS)
+        c.execute("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)")
+        for table, cols in MIGRATIONS.items():
+            have = {r["name"] for r in c.execute(f"PRAGMA table_info({table})")}
+            for name, typ in cols:
+                if name not in have:
+                    c.execute(f"ALTER TABLE {table} ADD COLUMN {name} {typ}")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_bnorm ON tenders(buyer_norm)")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_sector ON tenders(buyer_sector)")
+
+
+def meta_get(k):
+    with conn(readonly=True) as c:
+        r = c.execute("SELECT v FROM meta WHERE k=?", (k,)).fetchone()
+    return r["v"] if r else None
+
+
+def meta_set(k, v):
+    with conn() as c:
+        c.execute("INSERT INTO meta(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v",
+                  (k, str(v)))
+
+
+def fts_rebuild():
+    with conn() as c:
+        c.execute("INSERT INTO tenders_fts(tenders_fts) VALUES('rebuild')")
+
+
+def _fts_quote(q):
+    """Make free text safe for FTS5.
+
+    Raw input went straight into MATCH, so any slash, apostrophe, hyphen or
+    unbalanced quote raised an error: searching "fibre-optic" or "IT/Internet"
+    crashed the feed. Each word is quoted as a literal; '*' stays a prefix.
+    """
+    toks = re.findall(r"[A-Za-z0-9]+\*?", str(q or ""))
+    if not toks:
+        return None
+    return " AND ".join(f'"{t[:-1]}"*' if t.endswith("*") else f'"{t}"' for t in toks)
+
+
+CLASS_FIELDS = ("lane", "product_line", "is_digital", "is_opportunity", "fit_score",
+                "digital_domain", "digital_evidence", "relevance", "rationale",
+                "buyer_norm", "buyer_sector", "tender_type")
+
+
+def _class_update(c, uid, r):
+    c.execute(f"UPDATE tenders SET {', '.join(f + '=?' for f in CLASS_FIELDS)} WHERE uid=?",
+              tuple(r.get(f) for f in CLASS_FIELDS) + (uid,))
+
+
+def reclassify_all(force=False):
+    """Re-run the current classifier over every stored row.
+
+    Rows previously kept the lane assigned when first scraped, so classifier
+    fixes never reached existing data. Runs whenever the classifier version
+    changes; cheap, because it is local computation only.
+    """
+    from classify import classify, CLASSIFIER_VERSION, normalize_buyer, buyer_sector
+    if not force and meta_get("classifier_version") == CLASSIFIER_VERSION:
+        return 0
+    n = 0
+    with conn() as c:
+        rows = c.execute("SELECT uid, title, description, buyer, sector_label FROM tenders").fetchall()
+        for r in rows:
+            _class_update(c, r["uid"], classify(r["title"], r["description"],
+                                                r["buyer"], r["sector_label"]))
+            n += 1
+        for a in c.execute("SELECT uid, title, buyer FROM awards").fetchall():
+            cl = classify(a["title"], "", a["buyer"])
+            c.execute("""UPDATE awards SET lane=?, product_line=?, is_opportunity=?,
+                         buyer_norm=?, buyer_sector=? WHERE uid=?""",
+                      (cl["lane"], cl["product_line"], cl["is_opportunity"],
+                       cl["buyer_norm"], cl["buyer_sector"], a["uid"]))
+    meta_set("classifier_version", CLASSIFIER_VERSION)
+    fts_rebuild()
+    return n
 
 
 _STOP = re.compile(r"\b(supply|installation|procurement|of|for|the|and|services?|"
@@ -218,7 +310,7 @@ def _sane_advertised(adv, closing):
     return adv
 
 
-def upsert(rows, source):
+def upsert(rows, source, rebuild_fts=True):
     """Insert or update scraped rows. Returns (seen, new, changed)."""
     if not rows:
         return 0, 0, 0
@@ -250,6 +342,8 @@ def upsert(rows, source):
                           (r.get("status"), r.get("closing"), r.get("closing_time"),
                            r.get("value_text"), r.get("value_num"),
                            r.get("advertised"), ts, uid))
+                if r.get("lane") is not None:
+                    _class_update(c, uid, r)
                 continue
 
             # cross-source duplicate?
@@ -283,9 +377,14 @@ def upsert(rows, source):
                  r.get("digital_evidence"), r.get("relevance"), r.get("rationale"),
                  r.get("url"), r.get("doc_url"), r.get("contact_name"),
                  r.get("contact_email"), r.get("contact_phone"), r.get("raw"), dup_of, r.get("needs_review", 0), ts, ts))
+            if r.get("lane") is not None:
+                _class_update(c, uid, r)
             new += 1
 
-        c.execute("INSERT INTO tenders_fts(tenders_fts) VALUES('rebuild')")
+        # A full FTS rebuild per call made a 70,000-row backfill quadratic.
+        # Bulk callers pass rebuild_fts=False and rebuild once at the end.
+        if rebuild_fts:
+            c.execute("INSERT INTO tenders_fts(tenders_fts) VALUES('rebuild')")
     return len(rows), new, changed
 
 
@@ -316,7 +415,7 @@ def record_run(started, ok_n, fail_n, seen, new, trigger):
 
 def clear_new_flags(hours=24):
     with conn() as c:
-        c.execute("UPDATE tenders SET is_new=0 WHERE first_seen < datetime('now', ?)",
+        c.execute("UPDATE tenders SET is_new=0 WHERE datetime(first_seen) < datetime('now', ?)",
                   (f"-{hours} hour",))
 
 
@@ -325,11 +424,9 @@ def search(q=None, sources=None, domains=None, relevance=None, jurisdictions=Non
            status=None, closing_within=None, value_min=None, value_max=None,
            digital_only=True, new_only=False, sort="closing", limit=200, offset=0,
            lanes=None, scope="opportunity", date_on=None, date_from=None,
-           date_to=None, tiers=None):
+           date_to=None, sectors=None, ttypes=None):
     where, args = [], []
 
-    if tiers:
-        where.append(f"t.source_tier IN ({','.join('?'*len(tiers))})"); args += tiers
     if lanes:
         where.append(f"t.lane IN ({','.join('?'*len(lanes))})"); args += lanes
     elif scope == "opportunity":
@@ -345,12 +442,16 @@ def search(q=None, sources=None, domains=None, relevance=None, jurisdictions=Non
         where.append(f"t.source IN ({','.join('?'*len(sources))})"); args += sources
     if domains:
         where.append(f"t.product_line IN ({','.join('?'*len(domains))})"); args += domains
+    if sectors:
+        where.append(f"t.buyer_sector IN ({','.join('?'*len(sectors))})"); args += sectors
+    if ttypes:
+        where.append(f"t.tender_type IN ({','.join('?'*len(ttypes))})"); args += ttypes
     if relevance:
         where.append(f"t.relevance IN ({','.join('?'*len(relevance))})"); args += relevance
     if jurisdictions:
         where.append(f"t.jurisdiction IN ({','.join('?'*len(jurisdictions))})"); args += jurisdictions
     if status == "open":
-        where.append("(t.closing IS NULL OR t.closing >= date('now'))")
+        where.append("(t.closing >= date('now') OR (t.closing IS NULL AND COALESCE(t.advertised, substr(t.first_seen,1,10)) >= date('now','-45 day')))")
     elif status == "closed":
         where.append("t.closing < date('now')")
     if date_on:
@@ -368,10 +469,11 @@ def search(q=None, sources=None, domains=None, relevance=None, jurisdictions=Non
         where.append("t.value_num <= ?"); args.append(value_max)
 
     join = ""
-    if q:
+    fq = _fts_quote(q) if q else None
+    if fq:
         join = "JOIN tenders_fts f ON f.rowid = t.rowid"
         where.append("tenders_fts MATCH ?")
-        args.append(q)
+        args.append(fq)
 
     order = {
         "closing":  "t.closing IS NULL, t.closing ASC",
@@ -417,6 +519,12 @@ def facets():
                           WHERE lane IS NOT NULL AND lane!='None' GROUP BY 1"""),
             "jurisdictions": f("""SELECT jurisdiction k, COUNT(*) n FROM tenders
                                   GROUP BY 1 ORDER BY n DESC"""),
+            "sectors": f("""SELECT buyer_sector k, COUNT(*) n FROM tenders
+                            WHERE buyer_sector IS NOT NULL AND buyer_sector != ''
+                            GROUP BY 1 ORDER BY n DESC"""),
+            "ttypes": f("""SELECT tender_type k, COUNT(*) n FROM tenders
+                           WHERE tender_type IS NOT NULL AND tender_type != ''
+                           GROUP BY 1 ORDER BY n DESC"""),
             "relevance": f("""SELECT relevance k, COUNT(*) n FROM tenders
                               WHERE is_opportunity=1 GROUP BY 1"""),
             "stats": dict(c.execute("""SELECT
@@ -425,7 +533,7 @@ def facets():
                     SUM(CASE WHEN lane='Core' THEN 1 ELSE 0 END) core_n,
                     SUM(CASE WHEN lane='Partner-led' THEN 1 ELSE 0 END) partner_n,
                     SUM(CASE WHEN lane='Signal' THEN 1 ELSE 0 END) signal_n,
-                    SUM(CASE WHEN is_opportunity=1 AND (closing IS NULL OR closing>=date('now')) THEN 1 ELSE 0 END) open_digital,
+                    SUM(CASE WHEN is_opportunity=1 AND (closing >= date('now') OR (closing IS NULL AND COALESCE(advertised, substr(first_seen,1,10)) >= date('now','-45 day'))) THEN 1 ELSE 0 END) open_digital,
                     SUM(CASE WHEN is_opportunity=1 AND closing BETWEEN date('now') AND date('now','+7 day') THEN 1 ELSE 0 END) closing_week,
                     SUM(CASE WHEN is_opportunity=1 AND is_new=1 THEN 1 ELSE 0 END) new_digital,
                     SUM(CASE WHEN is_opportunity=1 AND relevance='High' THEN 1 ELSE 0 END) high_rel
@@ -439,7 +547,9 @@ def facets():
 def buyers(limit=60):
     with conn(readonly=True) as c:
         return [dict(r) for r in c.execute("""
-            SELECT buyer, jurisdiction, source,
+            SELECT COALESCE(NULLIF(buyer_norm,''), buyer) buyer,
+                   MAX(buyer_sector) sector, MAX(jurisdiction) jurisdiction,
+                   MAX(source) source,
                    COUNT(*) tenders,
                    SUM(is_opportunity) digital, SUM(is_digital) any_digital,
                    SUM(CASE WHEN closing>=date('now') THEN 1 ELSE 0 END) open_now,
@@ -447,7 +557,7 @@ def buyers(limit=60):
                    MAX(contact_phone) contact_phone,
                    ROUND(AVG(julianday(closing)-julianday(advertised)),0) avg_window
             FROM tenders WHERE buyer IS NOT NULL AND buyer!=''
-            GROUP BY buyer HAVING SUM(is_opportunity) > 0
+            GROUP BY COALESCE(NULLIF(buyer_norm,''), buyer) HAVING SUM(is_opportunity) > 0
             ORDER BY digital DESC, tenders DESC LIMIT ?""", (limit,))]
 
 
@@ -464,7 +574,14 @@ def overview():
                             WHERE lane IS NOT NULL AND lane!='None' GROUP BY 1"""),
             "by_source": f("""SELECT source k, COUNT(*) n, SUM(is_opportunity) dig
                               FROM tenders GROUP BY 1 ORDER BY n DESC"""),
-            "by_buyer": f("""SELECT buyer k, COUNT(*) n, SUM(is_opportunity) dig
+            "by_sector": f("""SELECT buyer_sector k, COUNT(*) n, SUM(is_opportunity) dig
+                              FROM tenders WHERE buyer_sector IS NOT NULL
+                              GROUP BY 1 ORDER BY dig DESC, n DESC"""),
+            "by_type": f("""SELECT tender_type k, COUNT(*) n, SUM(is_opportunity) dig
+                            FROM tenders WHERE is_opportunity=1 AND tender_type IS NOT NULL
+                            GROUP BY 1 ORDER BY n DESC"""),
+            "by_buyer": f("""SELECT COALESCE(NULLIF(buyer_norm,''), buyer) k, COUNT(*) n,
+                             SUM(is_opportunity) dig
                              FROM tenders WHERE buyer!='' GROUP BY 1
                              HAVING dig>0 ORDER BY dig DESC LIMIT 12"""),
             "calendar": f("""SELECT closing k, COUNT(*) n
@@ -502,23 +619,39 @@ def save_detail(uid, d):
                    d.get("contact_phone"), now(), uid))
 
 
-def find_repeats():
-    """Flag tenders that look like a re-issue of an earlier one by the same buyer."""
+def find_repeats(min_gap_days=120):
+    """Flag tenders that re-issue an earlier one by the same buyer.
+
+    The previous key included the closing date, so a re-issue (which always
+    has a new closing date) could never match its predecessor and nothing was
+    ever flagged. Identity is now normalised title plus organisation.
+    """
+    from datetime import date as _d
     with conn() as c:
-        rows = c.execute("""SELECT uid, dedupe_key, buyer, advertised FROM tenders
-                            WHERE is_opportunity=1 AND advertised IS NOT NULL""").fetchall()
-        by_key = {}
+        rows = c.execute("""SELECT uid, title, buyer, buyer_norm,
+                                   COALESCE(advertised, closing) d
+                            FROM tenders WHERE is_opportunity=1
+                              AND COALESCE(advertised, closing) IS NOT NULL""").fetchall()
+        groups = {}
         for r in rows:
-            by_key.setdefault(r["dedupe_key"], []).append(r)
+            t = _STOP.sub(" ", str(r["title"] or "").lower())
+            t = " ".join(sorted(re.sub(r"[^a-z0-9]+", " ", t).split()))[:160]
+            b = re.sub(r"[^a-z0-9]", "", str(r["buyer_norm"] or r["buyer"] or "").lower())[:40]
+            if t:
+                groups.setdefault((t, b), []).append(r)
         n = 0
-        for k, group in by_key.items():
-            if len(group) < 2:
+        for g in groups.values():
+            if len(g) < 2:
                 continue
-            g = sorted(group, key=lambda x: x["advertised"] or "")
+            g = sorted(g, key=lambda x: x["d"])
             for prev, cur in zip(g, g[1:]):
-                c.execute("UPDATE tenders SET repeat_of=? WHERE uid=?",
-                          (prev["uid"], cur["uid"]))
-                n += 1
+                try:
+                    gap = (_d.fromisoformat(cur["d"][:10]) - _d.fromisoformat(prev["d"][:10])).days
+                except Exception:
+                    continue
+                if gap >= min_gap_days:
+                    c.execute("UPDATE tenders SET repeat_of=? WHERE uid=?", (prev["uid"], cur["uid"]))
+                    n += 1
         return n
 
 
@@ -1006,7 +1139,7 @@ def brief(days_new=2, closing_days=7, limit=10):
         # A brief that lists closed tenders destroys trust in the whole tool.
         new_rows = f(f"""SELECT {cols} FROM tenders
                          WHERE is_opportunity=1 AND dup_of IS NULL
-                           AND first_seen >= datetime('now', ?)
+                           AND datetime(first_seen) >= datetime('now', ?)
                            AND closing IS NOT NULL
                            AND closing >= date('now')
                          ORDER BY fit_score DESC, closing LIMIT ?""",
@@ -1025,17 +1158,17 @@ def brief(days_new=2, closing_days=7, limit=10):
                              ch.field, ch.old_value, ch.new_value, ch.seen_at
                       FROM changes ch JOIN tenders t ON t.uid = ch.uid
                       WHERE t.is_opportunity=1
-                        AND (t.closing IS NULL OR t.closing >= date('now'))
-                        AND ch.seen_at >= datetime('now', ?)
+                        AND (t.closing >= date('now') OR (t.closing IS NULL AND COALESCE(t.advertised, substr(t.first_seen,1,10)) >= date('now','-45 day')))
+                        AND datetime(ch.seen_at) >= datetime('now', ?)
                       ORDER BY ch.seen_at DESC LIMIT ?""",
                   (f"-{days_new} day", 8))
 
         stats = dict(c.execute("""SELECT
             SUM(CASE WHEN is_opportunity=1 AND dup_of IS NULL
-                     AND (closing IS NULL OR closing >= date('now'))
+                     AND (closing >= date('now') OR (closing IS NULL AND COALESCE(advertised, substr(first_seen,1,10)) >= date('now','-45 day')))
                 THEN 1 ELSE 0 END) open_opps,
             SUM(CASE WHEN lane='Core' AND dup_of IS NULL
-                     AND (closing IS NULL OR closing >= date('now'))
+                     AND (closing >= date('now') OR (closing IS NULL AND COALESCE(advertised, substr(first_seen,1,10)) >= date('now','-45 day')))
                 THEN 1 ELSE 0 END) open_core,
             COUNT(*) tracked FROM tenders""").fetchone())
 
@@ -1060,6 +1193,11 @@ TENURE = [
     (r"\bframework agreement", 12),
     (r"\bamc\b|\bannual maintenance", 12),
 ]
+
+
+SERVICE_RX = re.compile(r"service|hiring|provision|subscription|maintenance|support|"
+                        r"\bamc\b|bandwidth|connectivity|internet|cellular|sms|"
+                        r"hosting|licen[cs]e|renewal|rental|outsourc|managed|call cent", re.I)
 
 
 def infer_tenure(text):
@@ -1090,39 +1228,6 @@ def _add_months(iso, months):
     return f"{y:04d}-{m:02d}-{dd:02d}"
 
 
-def reprocess_awards():
-    """Re-catalogue awards already stored, from their own title and description.
-
-    Fills winner (the "M/s." firm), tenure where the wording states a term, and
-    replaces a malformed award_date with a valid one or null. Idempotent and
-    text-only, so it is safe to run on every scan and needs no network. This is
-    what turns the rows you already hold into a clean catalogue without a
-    re-scrape. Returns the count of rows changed.
-    """
-    import enrich
-    changed = 0
-    with conn() as c:
-        rows = c.execute("SELECT uid, title, winner, tenure_months, "
-                         "award_date FROM awards").fetchall()
-        for r in rows:
-            cur = {"title": r["title"], "description": "",
-                   "winner": r["winner"], "tenure_months": r["tenure_months"],
-                   "award_date": r["award_date"]}
-            before = (cur["winner"], cur["tenure_months"], cur["award_date"])
-            enrich.enrich(cur)
-            after = (cur["winner"], cur["tenure_months"], cur["award_date"])
-            if after != before:
-                c.execute("UPDATE awards SET winner=?, tenure_months=?, "
-                          "renewal_due=CASE WHEN ? IS NOT NULL AND award_date IS NOT NULL "
-                          "THEN date(award_date, '+' || (?*30) || ' days') ELSE renewal_due END, "
-                          "award_date=? WHERE uid=?",
-                          (cur["winner"], cur["tenure_months"],
-                           cur["tenure_months"], cur["tenure_months"],
-                           cur["award_date"], r["uid"]))
-                changed += 1
-    return changed
-
-
 def upsert_awards(rows, source):
     """Store contract awards. Winner, value and tenure are what make the
     forward view possible; tender notices alone cannot produce it."""
@@ -1133,18 +1238,34 @@ def upsert_awards(rows, source):
     with conn() as c:
         for r in rows:
             uid = f"{source}:AW:{r.get('ref') or r.get('title','')[:60]}"
+            from classify import normalize_buyer, buyer_sector
             tenure = r.get("tenure_months") or infer_tenure(
                 f"{r.get('title','')} {r.get('description','')}")
-            renewal = _add_months(r.get("award_date"), tenure)
+            basis = "stated" if tenure else None
+            # Most award titles omit the term. Recurring service contracts in
+            # biddable lanes are overwhelmingly annual, so assume 12 months and
+            # label it. One-off supply contracts do not renew, so get no date.
+            if not tenure and r.get("lane") in ("Core", "Partner-led") and \
+                    SERVICE_RX.search(str(r.get("title") or "")):
+                tenure, basis = 12, "assumed"
+            renewal = _add_months(r.get("signing_date") or r.get("award_date"), tenure)
+            bn = normalize_buyer(r.get("buyer"))
             exists = c.execute("SELECT 1 FROM awards WHERE uid=?", (uid,)).fetchone()
             if exists:
                 c.execute("""UPDATE awards SET winner=COALESCE(?,winner),
                              value_text=COALESCE(?,value_text),
                              value_num=COALESCE(?,value_num),
-                             bids_received=COALESCE(?,bids_received)
+                             bids_received=COALESCE(?,bids_received),
+                             signing_date=COALESCE(?,signing_date),
+                             tenure_months=?, tenure_basis=?, renewal_due=?,
+                             lane=?, product_line=?, is_opportunity=?,
+                             buyer_norm=?, buyer_sector=?
                              WHERE uid=?""",
                           (r.get("winner"), r.get("value_text"), r.get("value_num"),
-                           r.get("bids_received"), uid))
+                           r.get("bids_received"), r.get("signing_date"),
+                           tenure, basis, renewal, r.get("lane"), r.get("product_line"),
+                           r.get("is_opportunity", 0), bn, buyer_sector(f"{r.get('buyer')} {bn}"),
+                           uid))
                 continue
             c.execute("""INSERT INTO awards
                 (uid,source,ref,title,buyer,winner,value_text,value_num,
@@ -1156,6 +1277,10 @@ def upsert_awards(rows, source):
                  r.get("bids_received"), r.get("award_date"), tenure, renewal,
                  r.get("lane"), r.get("product_line"), r.get("is_opportunity", 0),
                  r.get("url"), ts))
+            c.execute("""UPDATE awards SET tenure_basis=?, buyer_norm=?, buyer_sector=?,
+                         signing_date=? WHERE uid=?""",
+                      (basis, bn, buyer_sector(f"{r.get('buyer')} {bn}"),
+                       r.get("signing_date"), uid))
             new += 1
     return len(rows), new
 
@@ -1217,7 +1342,8 @@ def intelligence(horizon_days=540, min_fit_lane=("Core", "Partner-led")):
 
         # ── ACCOUNT MAP. Share of wallet per buyer, the core strategic view.
         accounts = f(f"""
-            SELECT buyer,
+            SELECT COALESCE(NULLIF(buyer_norm,''), buyer) buyer,
+                   MAX(buyer_sector)                         sector,
                    COUNT(*)                                  awards,
                    SUM(COALESCE(value_num,0))                total_value,
                    SUM(CASE WHEN {OURS} THEN COALESCE(value_num,0) ELSE 0 END) our_value,
@@ -1229,7 +1355,7 @@ def intelligence(horizon_days=540, min_fit_lane=("Core", "Partner-led")):
                    MIN(CASE WHEN renewal_due >= date('now') THEN renewal_due END) next_renewal
             FROM awards
             WHERE buyer IS NOT NULL AND buyer != '' AND lane IN ({lanes_sql})
-            GROUP BY buyer
+            GROUP BY COALESCE(NULLIF(buyer_norm,''), buyer)
             ORDER BY total_value DESC
             LIMIT 25""", lanes)
         for a in accounts:
@@ -1290,8 +1416,9 @@ def intelligence(horizon_days=540, min_fit_lane=("Core", "Partner-led")):
               AND renewal_due <= date('now', ?) AND lane IN ({lanes_sql})
             GROUP BY 1 ORDER BY 1""", (f"+{horizon_days} day",) + lanes)
 
-        cols = ("ref, title, buyer, winner, value_text, value_num, award_date, "
-                "tenure_months, renewal_due, lane, product_line, bids_received, url")
+        cols = ("ref, title, COALESCE(NULLIF(buyer_norm,''), buyer) buyer, winner, "
+                "value_text, value_num, award_date, tenure_months, tenure_basis, "
+                "renewal_due, lane, product_line, bids_received, url")
 
         # ── DEFEND. Ours, with what it took to win it and how contested.
         defend = f(f"""SELECT {cols},
@@ -1315,14 +1442,15 @@ def intelligence(horizon_days=540, min_fit_lane=("Core", "Partner-led")):
         # ── OVERDUE. Buyers whose own cadence says a tender is due now.
         #    This is prediction from behaviour rather than from a notice.
         cadence = f(f"""
-            SELECT buyer, product_line, COUNT(*) n,
+            SELECT COALESCE(NULLIF(buyer_norm,''), buyer) buyer, product_line, COUNT(*) n,
                    MIN(award_date) first_award, MAX(award_date) last_award,
                    CAST((julianday(MAX(award_date)) - julianday(MIN(award_date)))
                         / NULLIF(COUNT(*)-1,0) AS INTEGER) avg_gap_days,
                    CAST(julianday('now') - julianday(MAX(award_date)) AS INTEGER) since_last
             FROM awards
             WHERE award_date IS NOT NULL AND buyer != '' AND lane IN ({lanes_sql})
-            GROUP BY buyer, product_line HAVING n >= 2""", lanes)
+            GROUP BY COALESCE(NULLIF(buyer_norm,''), buyer), product_line
+            HAVING n >= 2""", lanes)
         overdue = []
         for r in cadence:
             gap, since = r.get("avg_gap_days") or 0, r.get("since_last") or 0
@@ -1349,8 +1477,14 @@ def intelligence(horizon_days=540, min_fit_lane=("Core", "Partner-led")):
                    SUM(COALESCE(value_num, est_value_low, 0)) v
                    FROM tenders
                    WHERE is_opportunity=1 AND dup_of IS NULL
-                     AND (closing IS NULL OR closing >= date('now'))
+                     AND (closing >= date('now') OR (closing IS NULL AND COALESCE(advertised, substr(first_seen,1,10)) >= date('now','-45 day')))
                    GROUP BY 1 ORDER BY n DESC""")
+
+        sectors = f(f"""SELECT COALESCE(buyer_sector,'Other') sector, COUNT(*) n,
+                   SUM(COALESCE(value_num,0)) value,
+                   SUM(CASE WHEN {OURS} THEN COALESCE(value_num,0) ELSE 0 END) ours
+                   FROM awards WHERE lane IN ({lanes_sql})
+                   GROUP BY 1 ORDER BY value DESC""", lanes)
 
         stats = dict(c.execute(f"""SELECT
                    COUNT(*) awards,
@@ -1359,55 +1493,115 @@ def intelligence(horizon_days=540, min_fit_lane=("Core", "Partner-led")):
                    SUM(CASE WHEN {OURS} THEN 1 ELSE 0 END) our_wins,
                    COUNT(DISTINCT winner) suppliers,
                    COUNT(DISTINCT buyer) buyers,
-                   MIN(CASE WHEN award_date >= '2015-01-01'
-                            AND award_date <= date('now','+1 year')
-                            THEN award_date END) history_from
+                   MIN(award_date) history_from
                    FROM awards""").fetchone())
         tv = stats.get("total_value") or 0
         stats["our_share"] = round(100 * (stats.get("our_value") or 0) / tv, 1) if tv else 0.0
         stats["defend_value"] = round(sum(x.get("value_num") or 0 for x in defend))
         stats["attack_value"] = round(sum(x.get("value_num") or 0 for x in attack))
 
-        # ── LIVE DEMAND, derived from the tenders table rather than awards.
-        # Awards tell you where the market has been. Open and recent tenders
-        # tell you where it is going, and this half works from day one, before
-        # any award depth exists. Opportunity lanes only.
-        demand_line = f("""SELECT product_line,
-                   SUM(CASE WHEN closing IS NULL OR closing >= date('now') THEN 1 ELSE 0 END) open_now,
-                   COUNT(*) seen_90d,
-                   SUM(COALESCE(value_num, est_value_low, 0)) value
-                   FROM tenders
-                   WHERE is_opportunity=1 AND dup_of IS NULL AND product_line != ''
-                     AND first_seen >= date('now','-90 day')
-                   GROUP BY 1 ORDER BY seen_90d DESC""")
-        demand_buyers = f("""SELECT buyer,
-                   COUNT(*) tenders,
-                   SUM(CASE WHEN closing IS NULL OR closing >= date('now') THEN 1 ELSE 0 END) open_now,
-                   MAX(first_seen) last_seen
-                   FROM tenders
-                   WHERE is_opportunity=1 AND dup_of IS NULL AND buyer != ''
-                     AND first_seen >= date('now','-120 day')
-                   GROUP BY 1 ORDER BY tenders DESC LIMIT 15""")
-        demand_month = f("""SELECT substr(first_seen,1,7) month, COUNT(*) n,
-                   SUM(COALESCE(value_num, est_value_low, 0)) value
-                   FROM tenders
-                   WHERE is_opportunity=1 AND dup_of IS NULL
-                     AND first_seen >= date('now','-12 month')
-                   GROUP BY 1 ORDER BY 1""")
-        closing_soon = f("""SELECT title, buyer, product_line, closing,
-                   COALESCE(value_num, est_value_low, 0) value_num, uid
-                   FROM tenders
-                   WHERE is_opportunity=1 AND dup_of IS NULL
-                     AND closing >= date('now') AND closing <= date('now','+21 day')
-                   ORDER BY closing ASC LIMIT 20""")
-        demand = {"by_line": demand_line, "buyers": demand_buyers,
-                  "by_month": demand_month, "closing_soon": closing_soon,
-                  "open_total": sum(1 for _ in closing_soon)}
-        stats["open_opportunities"] = c.execute(
-            """SELECT COUNT(*) FROM tenders WHERE is_opportunity=1 AND dup_of IS NULL
-               AND (closing IS NULL OR closing >= date('now'))""").fetchone()[0]
-
     return {"accounts": accounts, "rivals": rivals, "calendar": cal,
+            "sectors": sectors,
             "defend": defend, "attack": attack, "overdue": overdue,
-            "price": price, "pipeline": pipeline, "demand": demand, "stats": stats,
+            "price": price, "pipeline": pipeline, "stats": stats,
             "horizon_days": horizon_days}
+
+
+def analytics(months=18):
+    """Aggregates behind the Analytics dashboard.
+
+    Every series is computed from stored rows, so each chart can be traced to
+    the records that produced it. Value is shown only where a figure exists;
+    disclosure rates are reported alongside so gaps are visible, not hidden.
+    """
+    O = OPEN_SQL
+    with conn(readonly=True) as c:
+        f = lambda sql, a=(): [dict(r) for r in c.execute(sql, a)]
+        one = lambda sql, a=(): dict(c.execute(sql, a).fetchone() or {})
+
+        kpi = one(f"""SELECT
+            SUM(CASE WHEN is_opportunity=1 AND dup_of IS NULL AND {O} THEN 1 ELSE 0 END) open_opps,
+            SUM(CASE WHEN lane='Core' AND dup_of IS NULL AND {O} THEN 1 ELSE 0 END) open_core,
+            SUM(CASE WHEN is_opportunity=1 AND dup_of IS NULL AND {O}
+                     THEN COALESCE(value_num, est_value_low, 0) ELSE 0 END) open_value,
+            SUM(CASE WHEN is_opportunity=1 AND dup_of IS NULL
+                      AND datetime(first_seen) >= datetime('now','-7 day') THEN 1 ELSE 0 END) new_7d,
+            SUM(CASE WHEN is_opportunity=1 AND dup_of IS NULL
+                      AND datetime(first_seen) <  datetime('now','-7 day')
+                      AND datetime(first_seen) >= datetime('now','-14 day') THEN 1 ELSE 0 END) new_prev_7d,
+            SUM(CASE WHEN is_opportunity=1 AND dup_of IS NULL AND {O}
+                      AND (value_num IS NOT NULL OR est_value_low IS NOT NULL) THEN 1 ELSE 0 END) valued,
+            COUNT(*) tracked,
+            COUNT(DISTINCT COALESCE(NULLIF(buyer_norm,''), buyer)) buyers
+            FROM tenders""")
+
+        windows = [r["w"] for r in c.execute(
+            """SELECT CAST(julianday(closing)-julianday(advertised) AS INTEGER) w
+               FROM tenders WHERE is_opportunity=1 AND advertised IS NOT NULL
+                 AND closing IS NOT NULL AND closing > advertised""")]
+        windows = sorted(w for w in windows if 0 < w < 150)
+        kpi["median_window"] = windows[len(windows) // 2] if windows else None
+        buckets = [(0, 7, "under 7d"), (7, 14, "7-13d"), (14, 21, "14-20d"),
+                   (21, 30, "21-29d"), (30, 999, "30d+")]
+        window_hist = [{"k": lbl, "n": sum(1 for w in windows if lo <= w < hi)}
+                       for lo, hi, lbl in buckets]
+
+        monthly = f("""SELECT substr(COALESCE(advertised, first_seen),1,7) m, lane, COUNT(*) n
+                       FROM tenders
+                       WHERE lane IN ('Core','Partner-led','Signal') AND dup_of IS NULL
+                         AND COALESCE(advertised, first_seen) >= date('now', ?)
+                       GROUP BY 1,2 ORDER BY 1""", (f"-{months} month",))
+
+        weeks = f(f"""SELECT strftime('%Y-%W', closing) wk, MIN(closing) wk_start, lane, COUNT(*) n
+                      FROM tenders
+                      WHERE is_opportunity=1 AND dup_of IS NULL
+                        AND closing BETWEEN date('now') AND date('now','+56 day')
+                      GROUP BY 1,3 ORDER BY 1""")
+
+        heat = f("""SELECT COALESCE(buyer_sector,'Other') s, product_line p, COUNT(*) n
+                    FROM tenders WHERE is_opportunity=1 AND dup_of IS NULL AND product_line != ''
+                    GROUP BY 1,2""")
+
+        types = f(f"""SELECT tender_type k, COUNT(*) n,
+                      SUM(CASE WHEN {O} THEN 1 ELSE 0 END) open_n
+                      FROM tenders WHERE is_opportunity=1 AND dup_of IS NULL
+                        AND tender_type IS NOT NULL GROUP BY 1 ORDER BY n DESC""")
+
+        juris = f("""SELECT COALESCE(jurisdiction,'Unknown') k, COUNT(*) n
+                     FROM tenders WHERE is_opportunity=1 AND dup_of IS NULL
+                     GROUP BY 1 ORDER BY n DESC""")
+
+        top_buyers = f(f"""SELECT COALESCE(NULLIF(buyer_norm,''), buyer) k,
+                           MAX(buyer_sector) sector, COUNT(*) n,
+                           SUM(CASE WHEN {O} THEN 1 ELSE 0 END) open_n,
+                           SUM(CASE WHEN lane='Core' THEN 1 ELSE 0 END) core_n
+                           FROM tenders WHERE is_opportunity=1 AND dup_of IS NULL
+                           GROUP BY 1 ORDER BY n DESC LIMIT 12""")
+
+        # award side
+        aw_month = f("""SELECT substr(COALESCE(signing_date, award_date),1,7) m,
+                        COUNT(*) n, SUM(COALESCE(value_num,0)) v
+                        FROM awards WHERE COALESCE(signing_date, award_date) IS NOT NULL
+                          AND COALESCE(signing_date, award_date) >= date('now', ?)
+                        GROUP BY 1 ORDER BY 1""", (f"-{months} month",))
+        bids = f("""SELECT CASE WHEN bids_received >= 6 THEN '6+'
+                               ELSE CAST(bids_received AS TEXT) END k, COUNT(*) n
+                    FROM awards WHERE bids_received IS NOT NULL AND bids_received > 0
+                    GROUP BY 1 ORDER BY MIN(bids_received)""")
+        sup = f("""SELECT winner k, SUM(COALESCE(value_num,0)) v, COUNT(*) n
+                   FROM awards WHERE winner IS NOT NULL AND winner != ''
+                     AND lane IN ('Core','Partner-led')
+                   GROUP BY 1 ORDER BY v DESC""")
+        tot = sum(x["v"] for x in sup) or 0
+        # Herfindahl-Hirschman Index on supplier value shares, 0 to 10,000
+        hhi = round(sum((100 * x["v"] / tot) ** 2 for x in sup)) if tot else None
+        aw_stats = one("""SELECT COUNT(*) n, SUM(COALESCE(value_num,0)) v,
+                          ROUND(AVG(bids_received),1) avg_bids,
+                          SUM(CASE WHEN bids_received=1 THEN 1 ELSE 0 END) single
+                          FROM awards""")
+
+    return {"kpi": kpi, "window_hist": window_hist, "monthly": monthly,
+            "weeks": weeks, "heat": heat, "types": types, "juris": juris,
+            "top_buyers": top_buyers, "aw_month": aw_month, "bids": bids,
+            "suppliers": sup[:8], "supplier_total": tot, "hhi": hhi,
+            "aw_stats": aw_stats}

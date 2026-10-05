@@ -117,26 +117,14 @@ def extract_text(path, dpi=300, max_pages=8):
 def _ocr(img_path):
     try:
         import pytesseract
-        from PIL import Image, ImageOps, ImageFilter
+        from PIL import Image
         im = Image.open(img_path)
-        # Broadsheet pages scan small and grey. Upscale under-resolved pages,
-        # flatten to grayscale, stretch contrast, sharpen, then binarise. This
-        # lifts Tesseract accuracy on dense multi-column tender columns.
-        if max(im.size) < 2200:
-            f = 2200 / max(im.size)
-            im = im.resize((int(im.size[0] * f), int(im.size[1] * f)), Image.LANCZOS)
-        im = ImageOps.grayscale(im)
-        im = ImageOps.autocontrast(im, cutoff=1)
-        im = im.filter(ImageFilter.SHARPEN)
-        im = im.point(lambda p: 255 if p > 165 else 0)  # simple threshold
-        # psm 3 = full automatic page segmentation, right for multi-column pages
-        txt = pytesseract.image_to_string(im, lang="eng", config="--psm 3 --oem 1")
-        # a column-wise pass (psm 4) catches notices the block pass splits badly
-        if len(re.sub(r"\s", "", txt)) < 200:
-            txt = pytesseract.image_to_string(im, lang="eng", config="--psm 4")
-        return txt
-    except Exception:
-        return ""
+        if im.mode != "L":
+            im = im.convert("L")
+        # broadsheet pages are multi-column; psm 3 handles automatic layout
+        return pytesseract.image_to_string(im, lang="eng", config="--psm 3")
+    except Exception as e:
+        return f""
 
 
 def blocks(text):

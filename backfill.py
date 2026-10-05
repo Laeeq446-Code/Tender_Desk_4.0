@@ -32,6 +32,8 @@ import time
 import db
 import sources as S
 
+MONTHS_BACK = 24
+
 CHECKPOINT_SQL = """
 CREATE TABLE IF NOT EXISTS backfill (
     source     TEXT PRIMARY KEY,
@@ -139,7 +141,7 @@ def sweep_epads(start=None, end=1, batch=60, workers=4, delay=0.35,
             break
         rows = fetch_ids(src, ids, workers, delay)
         if rows:
-            _seen, new, _ch = db.upsert(rows, "EPADS")
+            _seen, new, _ch = db.upsert(rows, "EPADS", rebuild_fts=False)
             added_total += new
             misses = 0
         else:
@@ -147,6 +149,8 @@ def sweep_epads(start=None, end=1, batch=60, workers=4, delay=0.35,
 
         cursor = ids[-1] - 1
         batches += 1
+        if batches % 25 == 0:
+            db.fts_rebuild()
         set_cp("EPADS", cursor=cursor, lowest=end, highest=highest,
                rows_added=added_total, misses=misses,
                note=f"batch {batches}")
@@ -165,6 +169,8 @@ def sweep_epads(start=None, end=1, batch=60, workers=4, delay=0.35,
             print("batch limit reached; rerun to continue from the checkpoint")
             return
 
+    db.fts_rebuild()
+    db.find_repeats()
     set_cp("EPADS", cursor=cursor, lowest=end, highest=highest,
            rows_added=added_total, done=1 if cursor < end else 0,
            note="complete" if cursor < end else "paused")
@@ -241,6 +247,9 @@ def sweep_generic(name, pages=200):
     if src is None:
         print(f"{name}: no such adapter")
         return
+    if name == "EPMS-Awards":
+        src.months_back = MONTHS_BACK      # sweep award history month by month
+        src.detail_limit = 2000
     print(f"[{name}] sweeping up to {pages} pages")
     try:
         rows = src.run()
@@ -252,7 +261,8 @@ def sweep_generic(name, pages=200):
         seen, new = db.upsert_awards(rows, name)
         ch = 0
     else:
-        seen, new, ch = db.upsert(rows, name)
+        seen, new, ch = db.upsert(rows, name, rebuild_fts=False)
+        db.fts_rebuild()
     set_cp(name, cursor=0, lowest=0, highest=pages, rows_added=new, done=1,
            note=f"{seen} rows seen")
     print(f"[{name}] {seen} rows seen, {new} new")
@@ -273,9 +283,13 @@ def main():
     ap.add_argument("--max-batches", type=int,
                     help="stop after N batches, for a timed run")
     ap.add_argument("--pages", type=int, default=60, help="WorldBank pages")
+    ap.add_argument("--months", type=int, default=24,
+                    help="EPMS-Awards: months of history to sweep")
     ap.add_argument("--status", action="store_true")
     a = ap.parse_args()
 
+    global MONTHS_BACK
+    MONTHS_BACK = a.months
     if a.status:
         status()
         return
