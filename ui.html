@@ -237,6 +237,14 @@ a{color:inherit;text-decoration:none}
 .simrow{display:grid;grid-template-columns:1fr 130px 110px 70px;gap:8px;font-size:12px;padding:6px 0;border-bottom:1px solid var(--line-2);align-items:center}
 .simrow:last-child{border:none}
 .hero{background:linear-gradient(135deg,#0B2A35 0%,#0E3B47 60%,#12505E 100%);border-radius:8px;padding:22px 24px;color:#fff;margin-bottom:16px}
+.keyrow{display:flex;gap:8px;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.12);font-size:12px;color:rgba(255,255,255,.75);flex-wrap:wrap}
+.keyrow input{flex:0 1 300px;padding:7px 10px;border-radius:5px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07);color:#fff;font:inherit;font-size:12.5px}
+.keyrow button{padding:6px 12px;border-radius:5px;border:1px solid rgba(255,255,255,.25);color:#fff;font-size:12px}
+.keyrow button:hover{background:rgba(255,255,255,.1)}.keyrow em{font-style:normal;color:#7FD8CB}
+.ctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0 10px}
+.ctl button{font-size:11.5px;padding:4px 10px;border:1px solid var(--line);border-radius:100px;color:var(--ink-2);background:var(--surface)}
+.ctl button[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}
+.ctl .sp{flex:1}
 .hero h3{font-family:'Inter Tight';font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#7FD8CB;margin-bottom:10px}
 .askrow{display:flex;gap:10px}
 .askrow input{flex:1;padding:14px 16px;border-radius:6px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.07);color:#fff;font:inherit;font-size:15px}
@@ -390,6 +398,10 @@ a{color:inherit;text-decoration:none}
     <div class="askrow"><input id="nlq" placeholder="e.g. Which buyers issued the most connectivity tenders this year?"
       onkeydown="if(event.key==='Enter')askData()"><button onclick="askData()">Ask</button></div>
     <div class="chips" id="nlqChips"></div>
+    <div class="keyrow"><span>✦ AI access</span>
+      <input id="akey" type="password" autocomplete="off" name="tdkey" placeholder="Anthropic API key">
+      <button onclick="saveKey()">Save</button><button onclick="clearKey()">Forget</button>
+      <em id="keyState"></em></div>
     <div class="ans" id="nlqAns"></div>
   </div>
   <div class="lhead" style="margin-bottom:6px"><div><h2>Analytics</h2><p>Click any bar, slice or heatmap cell to filter the whole dashboard.</p></div>
@@ -403,7 +415,7 @@ a{color:inherit;text-decoration:none}
   <div class="sigs" id="sigs"></div>
   <div class="card aicard" id="aiCard">
     <div class="aihead"><div><b>✦ AI read-out</b><span>Five insights written from the figures on this page, under the active filters.</span></div>
-      <button class="iconbtn" id="aiBtn" onclick="genInsights()">Generate</button></div>
+      <div style="display:flex;gap:6px"><button class="iconbtn" id="aiBtn" onclick="genInsights()">Generate</button><button class="iconbtn" onclick="clearReadout()">Clear</button></div></div>
     <div id="aiText" class="aitext">Not generated yet.</div>
   </div>
   <div class="agrid" id="ocards"></div>
@@ -426,17 +438,7 @@ a{color:inherit;text-decoration:none}
   <div id="recOut"></div>
 </div></main>
 
-<main class="panel" id="p-ask"><div class="wrap" style="max-width:860px">
-  <div class="lhead"><div><h2>Ask the data</h2><p>Questions are answered by Claude, grounded in the live tender database. Your API key stays in this browser only.</p></div></div>
-  <div class="card" style="padding:16px">
-    <div style="display:flex;gap:8px;margin-bottom:9px;align-items:center"><input class="srch" id="akey" type="text" autocomplete="off" name="tdkey" placeholder="Anthropic API key" style="flex:1"><span id="keyState" style="font-size:11.5px;color:var(--ink-3);white-space:nowrap"></span><button class="iconbtn" onclick="clearKey()">Forget</button></div>
-    <div style="display:flex;gap:8px">
-      <input class="srch" id="aq" placeholder="e.g. Which Core tenders close this week?" style="flex:1" onkeydown="if(event.key==='Enter')doAsk()">
-      <button class="btn" style="width:110px" onclick="doAsk()">Ask</button>
-    </div>
-    <div id="aout" style="margin-top:14px;font-size:14px;line-height:1.65;color:var(--ink-2);white-space:pre-wrap"></div>
-  </div>
-</div></main>
+
 
 <main class="panel" id="p-filler"><div class="wrap" style="max-width:860px">
   <div class="lhead"><div><h2>Bid filler</h2><p>Upload a .docx application template once, then generate a pre-filled copy for any tender.</p></div></div>
@@ -525,7 +527,7 @@ async function doLogin(){
 }
 $('#pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 
-const TAB_DEF=['brief','feed','intel','papers','overview','contacts','reconcile','ask','filler','method'];
+const TAB_DEF=['brief','feed','intel','papers','overview','contacts','reconcile','filler','method'];
 function tabOrder(){
   let o=[]; try{o=JSON.parse(localStorage.getItem('td_taborder')||'[]')}catch(e){}
   o=o.filter(x=>TAB_DEF.includes(x));
@@ -574,7 +576,7 @@ function go(p){
   if(p==='overview')loadOverview();
   if(p==='intel')loadIntel();
   if(p==='filler')loadFiller();
-  if(p==='ask')keyState();
+  if(p==='overview')keyState();
 }
 function closeTab(id){
   OPEN=OPEN.filter(x=>safeId(x.uid)!==id);
@@ -1258,6 +1260,9 @@ const SUGGEST=['Which buyers issued the most connectivity tenders in the last 6 
  'Monthly count of new biddable tenders this year',
  'Which Jazz contracts renew in the next 12 months?'];
 function renderChips(){document.getElementById('nlqChips').innerHTML=SUGGEST.map(q=>`<span class="chip" onclick="document.getElementById('nlq').value='${q.replace(/'/g,"\\'")}';askData()">${esc(q)}</span>`).join('')}
+let NLQ=null;
+function clearAsk(){NLQ=null;document.getElementById('nlq').value='';const b=document.getElementById('nlqAns');b.style.display='none';b.innerHTML='';if(CH.cNlq){CH.cNlq.destroy();delete CH.cNlq}}
+function clearReadout(){document.getElementById('aiText').textContent='Not generated yet.';document.getElementById('aiBtn').textContent='Generate'}
 async function askData(){
   const q=document.getElementById('nlq').value.trim(); if(!q)return;
   let key=''; try{key=localStorage.getItem('td_akey')||''}catch(e){}
@@ -1265,24 +1270,38 @@ async function askData(){
   box.innerHTML='<div class="txt" style="color:var(--ink-3)">Writing a query, checking it against the safety rules, and running it…</div>';
   let r; try{r=await api('/api/nlq',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,api_key:key})})}
   catch(e){box.innerHTML='<div class="txt">Request failed.</div>';return}
-  if(r.error){box.innerHTML=`<div class="txt">${esc(r.error)}</div>${r.sql?`<details><summary>SQL attempted</summary><pre>${esc(r.sql)}</pre></details>`:''}`;return}
+  if(r.error){box.innerHTML=`<div class="ctl"><span class="sp"></span><button onclick="clearAsk()">Clear</button></div><div class="txt">${esc(r.error)}</div>${r.sql?`<details><summary>SQL attempted</summary><pre>${esc(r.sql)}</pre></details>`:''}`;return}
   const cols=r.columns||[], rows=r.rows||[];
-  const x=cols.includes(r.x)?r.x:cols[0], y=cols.includes(r.y)?r.y:cols.find(c=>rows.length&&typeof rows[0][c]==='number');
-  const chartable=r.chart!=='table'&&x&&y&&rows.length>1&&rows.length<=40;
-  box.innerHTML=`<div class="txt">${esc(r.answer||'')}</div>
-    ${chartable?`<div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px">${esc(r.title||'')}</div><div class="cv"><canvas id="cNlq"></canvas></div>`:''}
-    <details ${chartable?'':'open'}><summary>Result table · ${r.row_count} row${r.row_count===1?'':'s'}</summary>
-      <div style="overflow-x:auto"><table><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr>
-      ${rows.slice(0,50).map(rr=>`<tr>${cols.map(c=>`<td>${esc(rr[c]??'')}</td>`).join('')}</tr>`).join('')}</table></div></details>
-    <details><summary>SQL that produced this answer</summary><pre>${esc(r.sql||'')}</pre></details>`;
-  if(chartable){
-    const type=r.chart==='line'?'line':r.chart==='doughnut'?'doughnut':'bar';
-    const pal=[cvar('--accent'),cvar('--mint'),cvar('--amber'),'#7C6BD6','#C97C3A','#3D7EA6','#B5566E','#2F8F63'];
-    mkChart('cNlq',{type,data:{labels:rows.map(rr=>String(rr[x]).slice(0,32)),datasets:[{label:y,data:rows.map(rr=>rr[y]),
-      backgroundColor:type==='doughnut'?pal:cvar('--accent'),borderColor:cvar('--accent'),borderRadius:2,tension:.3,fill:false}]},
-      options:{indexAxis:type==='bar'&&rows.length>8?'y':'x',plugins:{legend:{display:type==='doughnut'}}}});
-  }
+  const isNum=c=>rows.length&&rows.some(x=>typeof x[c]==='number')&&rows.every(x=>x[c]==null||typeof x[c]==='number');
+  const nums=cols.filter(isNum), cats=cols.filter(c=>!isNum(c));
+  const x=cols.includes(r.x)&&!isNum(r.x)?r.x:(cats[0]||cols[0]);
+  let ys=nums.filter(c=>c!==x); if(r.y&&ys.includes(r.y))ys=[r.y].concat(ys.filter(c=>c!==r.y)); ys=ys.slice(0,3);
+  const can=rows.length>=1&&ys.length>0&&rows.length<=60;
+  NLQ={r,cols,rows,x,ys,type:can?(r.chart==='line'?'line':r.chart==='doughnut'?'doughnut':r.chart==='table'?(rows.length>1?'bar':'table'):'bar'):'table',can};
+  renderNlq();
 }
+function renderNlq(t){
+  if(!NLQ)return; if(t)NLQ.type=t;
+  const {r,cols,rows,x,ys,type,can}=NLQ, box=document.getElementById('nlqAns');
+  const btn=(k,l)=>`<button aria-pressed="${type===k}" onclick="renderNlq('${k}')" ${!can&&k!=='table'?'disabled style="opacity:.4"':''}>${l}</button>`;
+  box.innerHTML=`<div class="txt">${esc(r.answer||'')}</div>
+    <div class="ctl">${btn('bar','Bar')}${btn('line','Line')}${btn('doughnut','Pie')}${btn('table','Table')}
+      <span class="sp"></span>${type!=='table'?'<button onclick="dlNlq()">Download PNG</button>':''}<button onclick="clearAsk()">Clear</button></div>
+    ${type!=='table'?`<div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px">${esc(r.title||'')}</div><div class="cv"><canvas id="cNlq"></canvas></div>`:''}
+    <details ${type==='table'?'open':''}><summary>Result table · ${r.row_count} row${r.row_count===1?'':'s'}</summary>
+      <div style="overflow-x:auto"><table><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr>
+      ${rows.slice(0,60).map(rr=>`<tr>${cols.map(c=>`<td>${esc(rr[c]??'')}</td>`).join('')}</tr>`).join('')}</table></div></details>
+    <details><summary>SQL that produced this answer</summary><pre>${esc(r.sql||'')}</pre></details>`;
+  if(type==='table'){if(CH.cNlq){CH.cNlq.destroy();delete CH.cNlq}return}
+  const pal=[cvar('--accent'),cvar('--mint'),cvar('--amber'),'#7C6BD6','#C97C3A','#3D7EA6','#B5566E','#2F8F63'];
+  const labels=rows.map(rr=>String(rr[x]??'').slice(0,32));
+  const ds=type==='doughnut'
+    ?[{label:ys[0],data:rows.map(rr=>rr[ys[0]]),backgroundColor:pal,borderWidth:0}]
+    :ys.map((y,i)=>({label:y,data:rows.map(rr=>rr[y]),backgroundColor:pal[i],borderColor:pal[i],borderRadius:2,tension:.3,fill:false,pointRadius:type==='line'?3:0}));
+  mkChart('cNlq',{type,data:{labels,datasets:ds},
+    options:{indexAxis:type==='bar'&&rows.length>10?'y':'x',plugins:{legend:{display:type==='doughnut'||ys.length>1,position:type==='doughnut'?'right':'top'}}}});
+}
+function dlNlq(){const c=document.getElementById('cNlq');if(!c)return;const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='tender-desk-chart.png';document.body.appendChild(a);a.click();a.remove()}
 
 async function genInsights(){
   const b=document.getElementById('aiBtn'), t=document.getElementById('aiText');
@@ -1441,19 +1460,33 @@ function renderHealth(){
     return `<span class="hpill ${cls}" style="cursor:pointer" title="${esc(s.message||'')} — click for raw view" onclick="rawView('${esc(s.source)}')"><i></i>${esc(s.source)} <b>${s.total_rows||0}</b></span>`;
   }).join('');
 }
+let SCANPOLL=null;
+function scanLabel(s){
+  if(!s.running)return 'Scan now';
+  const el=s.started?Math.round((Date.now()-new Date(s.started.includes('+')?s.started:s.started+'Z'))/60000):0;
+  const cur=s.current==='post-processing'?'finishing up':(s.current||'starting');
+  return `<span class="spin"></span> ${esc(cur)}${s.total?` · ${Math.min(s.done+1,s.total)}/${s.total}`:''}${el?` · ${el}m`:''}`;
+}
+function pollScan(){
+  if(SCANPOLL)return;
+  const b=$('#scanBtn');
+  SCANPOLL=setInterval(async()=>{
+    let s; try{s=await api('/api/scan-status')}catch(e){return}
+    b.innerHTML=scanLabel(s);
+    if(!s.running){clearInterval(SCANPOLL);SCANPOLL=null;b.textContent='Scan now';boot()}
+  },4000);
+}
 async function runScan(){
-  const b=$('#scanBtn'); b.innerHTML='<span class="spin"></span> Scanning';
-  try{
-    await api('/api/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-    const poll=setInterval(async()=>{
-      const s=await api('/api/scan-status');
-      if(!s.running){clearInterval(poll);b.textContent='Scan now';boot()}
-    },4000);
-  }catch(e){b.textContent='Scan now'}
+  const b=$('#scanBtn'); b.innerHTML='<span class="spin"></span> starting';
+  try{const r=await api('/api/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      if(r&&r.error)b.innerHTML='<span class="spin"></span> already running';
+      pollScan();}
+  catch(e){b.textContent='Scan now'}
 }
 
 async function boot(){
   FACETS=await api('/api/facets');
+  api('/api/scan-status').then(s=>{if(s.running){$('#scanBtn').innerHTML=scanLabel(s);pollScan()}}).catch(()=>{});
   $('#themeBtn').textContent=document.documentElement.getAttribute('data-theme')==='light'?'Dark':'Light';
   renderTabs(); renderFilters(); renderHealth(); OFFSET=0;
   const lr=FACETS.last_run||{};
@@ -1484,6 +1517,10 @@ function keyState(){
   if(inp){inp.value=''; inp.placeholder=has?'Key saved. Type a new one to replace it.':'Anthropic API key'}
 }
 function clearKey(){try{localStorage.removeItem('td_akey')}catch(e){} keyState()}
+function saveKey(){const v=(document.getElementById('akey').value||'').trim();
+  if(!v){keyState();return}
+  try{localStorage.setItem('td_akey',v)}catch(e){}
+  keyState(); const s=document.getElementById('keyState'); if(s)s.textContent='saved in this browser ✓';}
 
 async function loadFiller(){
   const d=await api('/api/templates');

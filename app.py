@@ -76,7 +76,9 @@ def scan(trigger="manual", only=None, max_pages=None, debug=False):
     detail = []
     try:
         targets = [only] if only else ENABLED
-        for name in targets:
+        _state.update(started=db.now(), total=len(targets), done=0, current=None)
+        for i_, name in enumerate(targets):
+            _state.update(current=name, done=i_)
             src = S.get_source(name, debug=debug, max_pages=max_pages)
             if not src:
                 continue
@@ -102,6 +104,7 @@ def scan(trigger="manual", only=None, max_pages=None, debug=False):
                 fail_n += 1
                 detail.append({"source": name, "ok": False, "error": str(e)[:200]})
                 print(f"  [{name}] FAILED: {type(e).__name__}: {e}")
+        _state.update(current="post-processing", done=len(targets))
         db.clear_new_flags(24)
         for _step in (db.repair_dates, db.fts_rebuild, db.find_repeats):
             try:
@@ -289,7 +292,9 @@ async def api_scan(request: Request):
 @app.get("/api/scan-status")
 def api_scan_status(request: Request):
     require(request)
-    return {"running": _state["running"], "last": _state["last"]}
+    return {"running": _state["running"], "last": _state["last"],
+            "current": _state.get("current"), "done": _state.get("done"),
+            "total": _state.get("total"), "started": _state.get("started")}
 
 
 @app.post("/api/tender-detail/{uid:path}")
@@ -1181,7 +1186,11 @@ async def api_nlq(request: Request):
             + db.NLQ_SCHEMA +
             "\nReturn ONLY JSON: {\"sql\": \"...\", \"chart\": \"bar|line|doughnut|table\", "
             "\"x\": \"column for categories\", \"y\": \"numeric column\", \"title\": \"short chart title\"}. "
-            "Aggregate where a chart helps, limit to 25 categories, order sensibly.")
+            "Aggregate where a chart helps, limit to 25 categories, order sensibly. "
+            "If the question asks for a graph, chart, plot, trend or breakdown, you MUST "
+            "return an aggregated result with exactly one category or date column first "
+            "and one to three numeric columns, and choose bar, line (for time) or doughnut "
+            "(for shares). Use month buckets with substr(date,1,7) for trends.")
     try:
         spec = _json_from(_claude(sys1, q, key, 500)) or {}
         cols, rows = db.run_readonly_sql(spec.get("sql", ""))
