@@ -170,9 +170,11 @@ def conn(readonly=False):
 MIGRATIONS = {
     "tenders": [("buyer_norm", "TEXT"), ("buyer_sector", "TEXT"),
                 ("tender_type", "TEXT"), ("dup_of", "TEXT"),
-                ("needs_review", "INTEGER DEFAULT 0")],
+                ("needs_review", "INTEGER DEFAULT 0"), ("ai_summary", "TEXT"),
+                ("ai_at", "TEXT")],
     "awards": [("buyer_norm", "TEXT"), ("buyer_sector", "TEXT"),
-               ("tenure_basis", "TEXT"), ("signing_date", "TEXT")],
+               ("tenure_basis", "TEXT"), ("signing_date", "TEXT"),
+               ("tender_no", "TEXT")],
 }
 
 OPEN_SQL = ("(closing >= date('now') OR (closing IS NULL AND "
@@ -1259,13 +1261,13 @@ def upsert_awards(rows, source):
                              signing_date=COALESCE(?,signing_date),
                              tenure_months=?, tenure_basis=?, renewal_due=?,
                              lane=?, product_line=?, is_opportunity=?,
-                             buyer_norm=?, buyer_sector=?
+                             buyer_norm=?, buyer_sector=?, tender_no=COALESCE(?,tender_no)
                              WHERE uid=?""",
                           (r.get("winner"), r.get("value_text"), r.get("value_num"),
                            r.get("bids_received"), r.get("signing_date"),
                            tenure, basis, renewal, r.get("lane"), r.get("product_line"),
                            r.get("is_opportunity", 0), bn, buyer_sector(f"{r.get('buyer')} {bn}"),
-                           uid))
+                           r.get("tender_no") or None, uid))
                 continue
             c.execute("""INSERT INTO awards
                 (uid,source,ref,title,buyer,winner,value_text,value_num,
@@ -1278,9 +1280,9 @@ def upsert_awards(rows, source):
                  r.get("lane"), r.get("product_line"), r.get("is_opportunity", 0),
                  r.get("url"), ts))
             c.execute("""UPDATE awards SET tenure_basis=?, buyer_norm=?, buyer_sector=?,
-                         signing_date=? WHERE uid=?""",
+                         signing_date=?, tender_no=? WHERE uid=?""",
                       (basis, bn, buyer_sector(f"{r.get('buyer')} {bn}"),
-                       r.get("signing_date"), uid))
+                       r.get("signing_date"), r.get("tender_no"), uid))
             new += 1
     return len(rows), new
 
@@ -1507,7 +1509,7 @@ def intelligence(horizon_days=540, min_fit_lane=("Core", "Partner-led")):
             "horizon_days": horizon_days}
 
 
-def analytics(months=18):
+def analytics(months=18, lane=None, sector=None, product=None, buyer=None):
     """Aggregates behind the Analytics dashboard.
 
     Every series is computed from stored rows, so each chart can be traced to
@@ -1515,9 +1517,38 @@ def analytics(months=18):
     disclosure rates are reported alongside so gaps are visible, not hidden.
     """
     O = OPEN_SQL
+    flt, fa = [], []
+    if lane:
+        flt.append("lane = ?"); fa.append(lane)
+    if sector:
+        flt.append("buyer_sector = ?"); fa.append(sector)
+    if product:
+        flt.append("product_line = ?"); fa.append(product)
+    if buyer:
+        flt.append("COALESCE(NULLIF(buyer_norm,''), buyer) = ?"); fa.append(buyer)
+    F = (" AND " + " AND ".join(flt)) if flt else ""
+    FA = tuple(fa)
+
     with conn(readonly=True) as c:
-        f = lambda sql, a=(): [dict(r) for r in c.execute(sql, a)]
-        one = lambda sql, a=(): dict(c.execute(sql, a).fetchone() or {})
+        _f = lambda sql, a=(): [dict(r) for r in c.execute(sql, a)]
+        _one = lambda sql, a=(): dict(c.execute(sql, a).fetchone() or {})
+
+        def scoped(sql):
+            # inject the active filters into the tender-table WHERE clause,
+            # tolerant of line breaks between FROM and WHERE
+            if re.search(r"FROM tenders\s+WHERE\s", sql):
+                return re.sub(r"FROM tenders\s+WHERE\s", "FROM tenders WHERE 1=1" + F + " AND ", sql, count=1)
+            return re.sub(r"FROM tenders\b", "FROM tenders WHERE 1=1" + F, sql, count=1)
+
+        def f(sql, a=()):
+            if "FROM tenders" in sql:
+                return _f(scoped(sql), FA + tuple(a))
+            return _f(sql, a)
+
+        def one(sql, a=()):
+            if "FROM tenders" in sql:
+                return _one(scoped(sql), FA + tuple(a))
+            return _one(sql, a)
 
         kpi = one(f"""SELECT
             SUM(CASE WHEN is_opportunity=1 AND dup_of IS NULL AND {O} THEN 1 ELSE 0 END) open_opps,
@@ -1535,10 +1566,15 @@ def analytics(months=18):
             COUNT(DISTINCT COALESCE(NULLIF(buyer_norm,''), buyer)) buyers
             FROM tenders""")
 
-        windows = [r["w"] for r in c.execute(
+        windows = [r["w"] for r in f(
             """SELECT CAST(julianday(closing)-julianday(advertised) AS INTEGER) w
                FROM tenders WHERE is_opportunity=1 AND advertised IS NOT NULL
                  AND closing IS NOT NULL AND closing > advertised""")]
+
+        spark = f("""SELECT strftime('%Y-%W', first_seen) wk, COUNT(*) n
+                     FROM tenders WHERE is_opportunity=1 AND dup_of IS NULL
+                       AND datetime(first_seen) >= datetime('now','-84 day')
+                     GROUP BY 1 ORDER BY 1""")
         windows = sorted(w for w in windows if 0 < w < 150)
         kpi["median_window"] = windows[len(windows) // 2] if windows else None
         buckets = [(0, 7, "under 7d"), (7, 14, "7-13d"), (14, 21, "14-20d"),
@@ -1600,8 +1636,199 @@ def analytics(months=18):
                           SUM(CASE WHEN bids_received=1 THEN 1 ELSE 0 END) single
                           FROM awards""")
 
-    return {"kpi": kpi, "window_hist": window_hist, "monthly": monthly,
+    return {"kpi": kpi, "window_hist": window_hist, "monthly": monthly, "spark": spark,
+            "signals": signals(c_filters=(F, FA)),
+            "filters": {"lane": lane, "sector": sector, "product": product, "buyer": buyer},
             "weeks": weeks, "heat": heat, "types": types, "juris": juris,
             "top_buyers": top_buyers, "aw_month": aw_month, "bids": bids,
             "suppliers": sup[:8], "supplier_total": tot, "hhi": hhi,
             "aw_stats": aw_stats}
+
+
+
+# ─────────────────────────────────────────────── executive and AI support
+
+def signals(c_filters=("", ())):
+    """Rule-based observations that need no model: what moved, what is
+    unusual, what is about to bite. These populate the dashboard even without
+    an API key, and give the AI read-out verifiable raw material."""
+    F, FA = c_filters
+    out = []
+    with conn(readonly=True) as c:
+        q = lambda sql, a=(): [dict(r) for r in c.execute(sql, FA + tuple(a))]
+        mom = q(f"""SELECT COALESCE(buyer_sector,'Other') s,
+                    SUM(CASE WHEN datetime(first_seen) >= datetime('now','-30 day') THEN 1 ELSE 0 END) cur,
+                    SUM(CASE WHEN datetime(first_seen) <  datetime('now','-30 day')
+                              AND datetime(first_seen) >= datetime('now','-60 day') THEN 1 ELSE 0 END) prev
+                    FROM tenders WHERE 1=1{F} AND is_opportunity=1 AND dup_of IS NULL
+                    GROUP BY 1""")
+        for m in mom:
+            if m["cur"] >= 3 and m["cur"] >= 1.5 * max(1, m["prev"]):
+                out.append({"tone": "up", "title": f"{m['s']} demand is accelerating",
+                            "text": f"{m['cur']} biddable tenders in the last 30 days against {m['prev']} in the 30 before."})
+            elif m["prev"] >= 4 and m["cur"] <= 0.5 * m["prev"]:
+                out.append({"tone": "down", "title": f"{m['s']} demand has cooled",
+                            "text": f"{m['cur']} biddable tenders in the last 30 days, down from {m['prev']}."})
+        wk = q(f"""SELECT COUNT(*) n FROM tenders WHERE 1=1{F} AND is_opportunity=1 AND dup_of IS NULL
+                   AND closing BETWEEN date('now') AND date('now','+7 day')""")[0]["n"]
+        if wk:
+            out.append({"tone": "warn", "title": f"{wk} biddable deadline{'s' if wk > 1 else ''} this week",
+                        "text": "Each needs a bid or no-bid decision before the window closes."})
+        short = q(f"""SELECT COUNT(*) n FROM tenders WHERE 1=1{F} AND is_opportunity=1
+                      AND advertised IS NOT NULL AND closing IS NOT NULL
+                      AND julianday(closing)-julianday(advertised) < 10
+                      AND datetime(first_seen) >= datetime('now','-90 day')""")[0]["n"]
+        if short >= 3:
+            out.append({"tone": "warn", "title": f"{short} recent tenders gave under 10 days to bid",
+                        "text": "Short windows reward continuous scanning over weekly lists."})
+        rep_ = q(f"""SELECT COUNT(*) n FROM tenders WHERE 1=1{F} AND repeat_of IS NOT NULL
+                     AND {OPEN_SQL}""")[0]["n"]
+        if rep_:
+            out.append({"tone": "info", "title": f"{rep_} open tender{'s are' if rep_ > 1 else ' is a'} re-issue{'s' if rep_ > 1 else ''}",
+                        "text": "Re-issues often follow a failed first round, which can lower competition."})
+        sb = [dict(r) for r in c.execute("""SELECT COUNT(*) n, SUM(COALESCE(value_num,0)) v FROM awards
+                                             WHERE bids_received=1 AND lane IN ('Core','Partner-led')""")][0]
+        if sb["n"]:
+            out.append({"tone": "info", "title": f"{sb['n']} biddable-lane awards went to a single bidder",
+                        "text": f"Worth PKR {sb['v']/1e6:,.1f}M in total. Uncontested accounts are the cheapest share to win."})
+    return out[:6]
+
+
+def priority_queue(limit=12):
+    """Rank live opportunities for an executive, without a model.
+
+    Score blends classifier fit (50%), deadline urgency (30%) and account
+    weight (20%: named key account, or prior awards at that buyer). Each row
+    carries its reasons so the ranking is arguable rather than opaque.
+    """
+    from classify import KEY_ACCOUNTS
+    with conn(readonly=True) as c:
+        rows = [dict(r) for r in c.execute(f"""
+            SELECT uid, ref, title, COALESCE(NULLIF(buyer_norm,''), buyer) buyer, buyer_sector,
+                   lane, product_line, fit_score, closing, value_num, est_value_low, source, url,
+                   CAST(julianday(closing) - julianday('now') AS INTEGER) days_left
+            FROM tenders WHERE is_opportunity=1 AND dup_of IS NULL AND {OPEN_SQL}""")]
+        prior = {r["b"]: r["n"] for r in c.execute(
+            "SELECT COALESCE(NULLIF(buyer_norm,''), buyer) b, COUNT(*) n FROM awards GROUP BY 1")}
+        contest = {r["p"]: r["a"] for r in c.execute(
+            "SELECT product_line p, AVG(bids_received) a FROM awards WHERE bids_received IS NOT NULL GROUP BY 1")}
+    out = []
+    for r in rows:
+        dl = r["days_left"]
+        urg = 1.0 if dl is not None and dl <= 3 else 0.8 if dl is not None and dl <= 7 else \
+              0.55 if dl is not None and dl <= 14 else 0.3 if dl is not None else 0.15
+        key = any(k in str(r["buyer"] or "").lower() for k in KEY_ACCOUNTS)
+        acct = 1.0 if key else 0.6 if prior.get(r["buyer"]) else 0.2
+        score = round(100 * (0.5 * (r["fit_score"] or 0) / 100 + 0.3 * urg + 0.2 * acct))
+        why = [f"fit {r['fit_score']}"]
+        if dl is not None:
+            why.append(f"closes in {dl}d")
+        if key:
+            why.append("key account")
+        elif prior.get(r["buyer"]):
+            why.append(f"{prior[r['buyer']]} prior awards at this buyer")
+        a = contest.get(r["product_line"])
+        if a:
+            why.append(f"~{a:.1f} bidders typical")
+        action = ("Bid now" if r["lane"] == "Core" and dl is not None and dl <= 10 and (r["fit_score"] or 0) >= 85
+                  else "Qualify" if (dl is not None and dl <= 30) else "Watch")
+        r.update(score=score, why=", ".join(why), action=action)
+        out.append(r)
+    out.sort(key=lambda x: -x["score"])
+    return out[:limit]
+
+
+def similar_awards(uid, k=5):
+    """Past awards most like this tender: who won, at what price, against
+    how many bidders. A benchmark for bid or no-bid that needs no model."""
+    t = get(uid)
+    if not t:
+        return []
+    q = set(_terms(t.get("title")))
+    if not q:
+        return []
+    with conn(readonly=True) as c:
+        aw = [dict(r) for r in c.execute(
+            """SELECT ref, title, COALESCE(NULLIF(buyer_norm,''), buyer) buyer, winner, value_num,
+                      bids_received, COALESCE(signing_date, award_date) d, url, product_line, tender_no
+               FROM awards""")]
+    if not aw:
+        return []
+    import math
+    df = {}
+    docs = []
+    for a in aw:
+        ts = set(_terms(a["title"]))
+        docs.append((a, ts))
+        for x in ts:
+            df[x] = df.get(x, 0) + 1
+    n = len(docs)
+    idf = lambda x: math.log(1 + n / (1 + df.get(x, 0)))
+    qm = sum(idf(x) for x in q) or 1
+    scored = []
+    for a, ts in docs:
+        sh = q & ts
+        if not sh:
+            continue
+        s = sum(idf(x) for x in sh)
+        cov = (2 * (s / qm) * (s / (sum(idf(x) for x in ts) or 1))) / ((s / qm) + (s / (sum(idf(x) for x in ts) or 1)))
+        if a["product_line"] and a["product_line"] == t.get("product_line"):
+            cov += 0.1
+        if a.get("tender_no") and a["tender_no"] == t.get("ref"):
+            cov = 2.0          # this tender's own award
+        scored.append((cov, a))
+    scored.sort(key=lambda x: -x[0])
+    return [dict(a, similarity=round(min(s, 1.0), 2), own=(s >= 2.0)) for s, a in scored[:k] if s >= 0.25]
+
+
+# ── governed natural-language query support
+NLQ_SCHEMA = """SQLite. Tables:
+tenders(uid, source, ref, title, description, buyer, buyer_norm, buyer_sector, jurisdiction,
+        lane, product_line, tender_type, fit_score, relevance, is_opportunity, status,
+        advertised, closing, value_num, est_value_low, est_value_high, first_seen, repeat_of, dup_of)
+awards(ref, title, buyer, buyer_norm, buyer_sector, winner, value_num, bids_received,
+       award_date, signing_date, tenure_months, tenure_basis, renewal_due, lane, product_line, tender_no)
+Notes: dates are ISO 'YYYY-MM-DD' text; first_seen is ISO datetime text, wrap in datetime().
+lane is one of 'Core','Partner-led','Signal','None'. is_opportunity=1 means Core or Partner-led.
+Exclude duplicates with dup_of IS NULL. A tender is open when closing >= date('now').
+Use COALESCE(NULLIF(buyer_norm,''), buyer) for organisation names. value_num is PKR.
+Jazz itself appears in awards.winner as names containing 'jazz', 'pmcl' or 'mobilink'.
+tenders.ref links to awards.tender_no."""
+
+_FORBID = re.compile(r"\b(insert|update|delete|drop|alter|create|replace|attach|detach|pragma|"
+                     r"vacuum|reindex|trigger|transaction|begin|commit|load_extension)\b", re.I)
+
+
+def run_readonly_sql(sql, limit=500):
+    """Execute a model-written query under hard guardrails: a single SELECT or
+    WITH statement, no write or schema keywords, read-only connection, row cap
+    and an instruction budget so a runaway query is aborted."""
+    s = (sql or "").strip().rstrip(";").strip()
+    if not re.match(r"^(select|with)\b", s, re.I):
+        raise ValueError("Only SELECT queries are permitted.")
+    if ";" in s or _FORBID.search(s):
+        raise ValueError("Query rejected by the safety filter.")
+    if re.search(r"\bsqlite_\w+", s, re.I):
+        raise ValueError("System tables are not queryable.")
+    with conn(readonly=True) as c:
+        steps = {"n": 0}
+
+        def guard():
+            steps["n"] += 1
+            return 1 if steps["n"] > 4000 else 0
+        c.set_progress_handler(guard, 2000)
+        cur = c.execute(f"SELECT * FROM ({s}) LIMIT {int(limit)}")
+        cols = [x[0] for x in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+    return cols, rows
+
+
+def ai_cache_get(uid):
+    with conn(readonly=True) as c:
+        r = c.execute("SELECT ai_summary, ai_at FROM tenders WHERE uid=?", (uid,)).fetchone()
+    return dict(r) if r else None
+
+
+def ai_cache_set(uid, text):
+    with conn() as c:
+        c.execute("UPDATE tenders SET ai_summary=?, ai_at=? WHERE uid=?", (text, now(), uid))

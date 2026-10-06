@@ -202,7 +202,7 @@ a{color:inherit;text-decoration:none}
 .acard .sub{font-size:11.5px;color:var(--ink-3);margin-bottom:10px}
 .acard .cv{position:relative;height:230px}
 .s12{grid-column:span 12}.s8{grid-column:span 8}.s6{grid-column:span 6}.s4{grid-column:span 4}
-.sect{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:700;grid-column:span 12;margin:10px 0 -4px;padding-top:10px;border-top:1px solid var(--line)}
+.asect{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:700;grid-column:span 12;margin:10px 0 -4px;padding-top:10px;border-top:1px solid var(--line)}
 .heat{display:grid;gap:2px;font-size:10.5px;overflow-x:auto}
 .heat div{padding:6px 4px;text-align:center;border-radius:2px;font-family:'JetBrains Mono';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .heat .hl{text-align:left;color:var(--ink-2);font-family:'Inter';font-size:11px}
@@ -215,6 +215,51 @@ a{color:inherit;text-decoration:none}
 .kpi .dl{font-size:11px;font-family:'JetBrains Mono';margin-top:4px}
 .badge{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:2px;margin-left:6px}
 @media(max-width:1000px){.s8,.s6,.s4{grid-column:span 12}}
+.exec{background:var(--surface);border:1px solid var(--line);border-radius:6px;margin-bottom:18px;overflow:hidden}
+.exec-h{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line-2)}
+.exec-h b{font-family:'Inter Tight';font-size:15px}.exec-h span{font-size:11.5px;color:var(--ink-3);display:block;margin-top:2px}
+.exec-note{padding:14px 18px;border-bottom:1px solid var(--line-2);background:var(--surface-2)}
+.exec-note .hl{font-family:'Inter Tight';font-weight:600;font-size:17px;line-height:1.4;letter-spacing:-.015em}
+.exec-note .dec{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:12px}
+.exec-note .dc{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:10px 12px;font-size:12.5px;cursor:pointer}
+.exec-note .dc b{display:block;font-size:13px;margin:4px 0 3px}
+.exec-note .rk{font-size:12px;color:var(--ink-2);margin-top:10px}
+.pq{display:grid;grid-template-columns:96px 1fr 110px 54px;gap:10px;align-items:center;padding:9px 18px;border-bottom:1px solid var(--line-2);font-size:12.5px;cursor:pointer}
+.pq:hover{background:var(--surface-2)}.pq:last-child{border:none}
+.pq .t{font-weight:600;font-family:'Inter Tight';font-size:13px;line-height:1.35}
+.pq .w{font-size:11px;color:var(--ink-3);margin-top:2px}
+.act{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 7px;border-radius:3px;text-align:center}
+.act.bid{background:rgba(15,158,140,.16);color:var(--mint)}.act.qual{background:rgba(190,124,12,.16);color:var(--amber)}.act.watch{background:var(--surface-3);color:var(--ink-3)}
+.sc{font-family:'JetBrains Mono';font-weight:600;font-size:15px;text-align:right}
+.star{border:1px solid var(--line);border-radius:100px;width:30px;height:30px;display:grid;place-items:center;color:var(--amber);font-size:14px;background:var(--surface);margin:auto}
+.star:hover{border-color:var(--amber);background:rgba(190,124,12,.08)}
+.aibox{font-size:13.5px;line-height:1.7;color:var(--ink-2);white-space:pre-wrap}.aibox b{color:var(--ink)}
+.simrow{display:grid;grid-template-columns:1fr 130px 110px 70px;gap:8px;font-size:12px;padding:6px 0;border-bottom:1px solid var(--line-2);align-items:center}
+.simrow:last-child{border:none}
+.hero{background:linear-gradient(135deg,#0B2A35 0%,#0E3B47 60%,#12505E 100%);border-radius:8px;padding:22px 24px;color:#fff;margin-bottom:16px}
+.hero h3{font-family:'Inter Tight';font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#7FD8CB;margin-bottom:10px}
+.askrow{display:flex;gap:10px}
+.askrow input{flex:1;padding:14px 16px;border-radius:6px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.07);color:#fff;font:inherit;font-size:15px}
+.askrow input::placeholder{color:rgba(255,255,255,.55)}
+.askrow button{padding:0 22px;border-radius:6px;background:#25C4AC;color:#052722;font-family:'Inter Tight';font-weight:700;font-size:14px}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+.chip{font-size:11.5px;padding:5px 11px;border-radius:100px;border:1px solid rgba(255,255,255,.22);color:rgba(255,255,255,.85);cursor:pointer}
+.chip:hover{background:rgba(255,255,255,.1)}
+.ans{background:var(--surface);color:var(--ink);border-radius:6px;margin-top:14px;padding:16px 18px;display:none}
+.ans .txt{font-size:14.5px;line-height:1.6;margin-bottom:12px}
+.ans .cv{position:relative;height:260px}
+.ans details{margin-top:10px;font-size:12px;color:var(--ink-3)}
+.ans pre{font-family:'JetBrains Mono';font-size:11.5px;background:var(--surface-2);padding:10px;border-radius:4px;white-space:pre-wrap;color:var(--ink-2)}
+.ans table{border-collapse:collapse;width:100%;font-size:12px;margin-top:8px}.ans td,.ans th{border-bottom:1px solid var(--line-2);padding:5px 6px;text-align:left}
+.fbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0 14px;min-height:28px}
+.fchip{font-size:12px;padding:4px 10px;border-radius:100px;background:var(--accent);color:#fff;display:flex;gap:7px;align-items:center}
+.fchip button{color:#fff;opacity:.8}
+.sigs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-bottom:14px}
+.sig{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:4px;padding:11px 13px}
+.sig b{font-family:'Inter Tight';font-size:13px;display:block;margin-bottom:3px}.sig span{font-size:12px;color:var(--ink-2);line-height:1.5}
+.sig.up{border-left-color:var(--mint)}.sig.down{border-left-color:var(--red)}.sig.warn{border-left-color:var(--amber)}
+.kpi .spk{height:30px;margin-top:6px}
+.hint{font-size:11px;color:var(--ink-3);margin-top:-6px;margin-bottom:10px}
 .bsec{margin-bottom:22px}
 .bsec h3{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);font-weight:700;margin-bottom:9px;display:flex;align-items:center;gap:9px}
 .bsec h3 .cnt{font-family:'JetBrains Mono';font-size:10.5px;background:var(--surface-3);color:var(--ink-2);padding:1px 6px;border-radius:2px;letter-spacing:0}
@@ -286,6 +331,7 @@ a{color:inherit;text-decoration:none}
     </div>
     <p style="font-size:11.5px;color:var(--ink-3);margin-top:10px">Views are stored in this browser and persist between visits. The default view is everything biddable.</p>
   </div>
+  <div id="execView"></div>
   <div id="briefBody"></div>
 </div></main>
 
@@ -339,15 +385,24 @@ a{color:inherit;text-decoration:none}
 </div></main>
 
 <main class="panel" id="p-overview"><div class="wrap">
-  <div class="lhead"><div><h2>Analytics</h2><p>Where B2G demand comes from, how it is moving, and how contested it is.</p></div>
+  <div class="hero">
+    <h3>✦ Ask your data</h3>
+    <div class="askrow"><input id="nlq" placeholder="e.g. Which buyers issued the most connectivity tenders this year?"
+      onkeydown="if(event.key==='Enter')askData()"><button onclick="askData()">Ask</button></div>
+    <div class="chips" id="nlqChips"></div>
+    <div class="ans" id="nlqAns"></div>
+  </div>
+  <div class="lhead" style="margin-bottom:6px"><div><h2>Analytics</h2><p>Click any bar, slice or heatmap cell to filter the whole dashboard.</p></div>
     <div class="sortbar"><label>Period</label>
       <select id="anMonths" onchange="loadOverview()">
         <option value="6">6 months</option><option value="12">12 months</option>
         <option value="18" selected>18 months</option><option value="36">36 months</option>
       </select></div></div>
+  <div class="fbar" id="fbar"></div>
   <div class="kpis" id="kpis"></div>
+  <div class="sigs" id="sigs"></div>
   <div class="card aicard" id="aiCard">
-    <div class="aihead"><div><b>AI read-out</b><span>Five insights written from the figures on this page, and only those figures.</span></div>
+    <div class="aihead"><div><b>✦ AI read-out</b><span>Five insights written from the figures on this page, under the active filters.</span></div>
       <button class="iconbtn" id="aiBtn" onclick="genInsights()">Generate</button></div>
     <div id="aiText" class="aitext">Not generated yet.</div>
   </div>
@@ -425,6 +480,8 @@ a{color:inherit;text-decoration:none}
     <p>A tender notice describes what is happening now. A contract award describes who holds an account, at what price, against how many bidders, and for how long. PPRA publishes awards, so the contract term stated in the wording, typically "for a period of three (03) years", yields a re-tender date years ahead of the notice. The Intelligence tab turns that into a renewal pipeline, an incumbency map, price bands per product line, and a list of single-bid awards where an incumbent went unchallenged. This is the layer a tender subscription cannot supply, because it is analysis of procurement behaviour rather than distribution of notices.</p>
     <h3 style="font-size:15px;margin:16px 0 8px;color:var(--ink)">3f. Newspaper ingestion</h3>
     <p>Commercial aggregators differentiate on newspaper coverage rather than portals, and their operation is largely manual: staff read the papers and key the advertisements in. The Newspapers tab automates the English-language half of that. A PDF carrying a text layer is read directly. A scanned page is rasterised and passed through OCR, then segmented into advertisements, filtered to those carrying a procurement heading, and parsed for buyer, subject, reference, closing date and contact. Urdu is deliberately excluded: recognition quality is poor enough that a wrong closing date would enter the database, which is worse than a missing tender. Every saved row is flagged for review.</p>
+    <h3 style="font-size:15px;margin:16px 0 8px;color:var(--ink)">3g. Where AI is used</h3>
+    <p>Four places, each grounded in stored data and each inspectable. <b>Executive note</b>: written only from the ranked priority queue, and any decision citing a tender not in that queue is discarded before display. <b>Tender AI brief</b>: reads the tender and its comparable past awards, cached so each tender costs one call. <b>Ask your data</b>: the model writes a single read-only SQL query against a documented schema; the server rejects anything other than a SELECT, blocks write and system keywords, runs it on a read-only connection with a row cap and an execution budget, and shows the SQL beside the answer. <b>AI read-out</b>: five insights from the dashboard figures under the active filters. Ranking, classification, signals and comparable awards use no model at all, so the product works fully without an API key.</p>
     <h3 style="font-size:15px;margin:16px 0 8px;color:var(--ink)">4. Scoring</h3>
     <p>The fit score (0-100) reflects lane, keyword density, and whether the buyer is a named key account (NTC, USF, NADRA, PITB, FBR and others). It orders the queue; it does not replace judgement.</p>
     <h3 style="font-size:15px;margin:16px 0 8px;color:var(--ink)">4b. Nothing is discarded</h3>
@@ -593,6 +650,7 @@ function rowHTML(r){
       <div class="torg">${esc(r.buyer_norm||r.buyer||'—')}${r.buyer_sector?` <span style="color:var(--ink-3)">· ${esc(r.buyer_sector)}</span>`:''}${r.tender_type&&r.tender_type!=='Other'?` <span style="color:var(--ink-3)">· ${esc(r.tender_type)}</span>`:''}${r.repeat_of?' <span class="ref">· re-issue</span>':''}</div>
     </div>
     <div class="tside">
+      <button class="star" title="AI brief" onclick="event.stopPropagation();openTender('${esc(r.uid)}',true)">✦</button>
       <div class="val"><small>Value</small>${money(r)}</div>
       <div class="gauge ${urg(dl)}"><div class="lbl">Closes <b>${dl==null?'—':dl<0?'closed':dl+'d'}</b></div><div class="bar"><i style="width:${pct}%"></i></div></div>
     </div>
@@ -624,9 +682,9 @@ async function loadFeed(append){
 }
 function loadMore(){loadFeed(true)}
 
-async function openTender(uid){
+async function openTender(uid,ai){
   const id=safeId(uid);
-  if(OPEN.find(t=>t.uid===uid)){go(id);return}
+  if(OPEN.find(t=>t.uid===uid)){go(id);if(ai)aiTender(uid,false);return}
   let t;
   try{t=await api('/api/tender/'+encodeURIComponent(uid))}
   catch(e){alert('Could not load that tender.');return}
@@ -637,13 +695,37 @@ async function openTender(uid){
   p.innerHTML=`<div class="wrap">${detailHTML(t)}</div>`;
   document.body.appendChild(p);
   go(id);
+  loadSimilar(uid);
+  if(ai)aiTender(uid,false);
   if(!t.detail_fetched){
     api('/api/tender-detail/'+encodeURIComponent(uid),{method:'POST'}).then(full=>{
       const i=OPEN.findIndex(x=>x.uid===uid);
       if(i>-1){OPEN[i]=full;const el=document.getElementById('p-'+id);
-        if(el)el.innerHTML=`<div class="wrap">${detailHTML(full)}</div>`;}
+        if(el){el.innerHTML=`<div class="wrap">${detailHTML(full)}</div>`;loadSimilar(uid);}}
     }).catch(()=>{});
   }
+}
+async function aiTender(uid,refresh){
+  const el=document.getElementById('ai-'+safeId(uid)); if(!el)return;
+  let key=''; try{key=localStorage.getItem('td_akey')||''}catch(e){}
+  el.parentElement.style.display='block';
+  el.innerHTML='<span style="color:var(--ink-3)">Reading the tender and comparable awards…</span>';
+  try{
+    const r=await api('/api/tender-ai/'+encodeURIComponent(uid),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key,refresh:!!refresh})});
+    const el2=document.getElementById('ai-'+safeId(uid))||el; el2.parentElement.style.display='block';
+    el2.innerHTML=esc(r.text||'').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')+
+      (r.cached?`<div style="font-size:11px;color:var(--ink-3);margin-top:8px">Cached ${esc((r.at||'').slice(0,16).replace('T',' '))} · <a href="#" onclick="aiTender('${esc(uid)}',true);return false" style="color:var(--accent)">refresh</a></div>`:'');
+  }catch(e){el.textContent='Request failed.'}
+}
+async function loadSimilar(uid){
+  const el=document.getElementById('sim-'+safeId(uid)); if(!el)return;
+  let r={rows:[]}; try{r=await api('/api/similar/'+encodeURIComponent(uid))}catch(e){}
+  const pk=v=>!v?'—':v>=1e6?'PKR '+(v/1e6).toFixed(1)+'M':'PKR '+Math.round(v).toLocaleString();
+  el.innerHTML=(r.rows||[]).length?r.rows.map(a=>`<div class="simrow">
+      <div>${a.own?'<span class="rel High">this tender</span> ':''}${esc((a.title||'').slice(0,80))}<div style="font-size:11px;color:var(--ink-3)">${esc(a.buyer||'')} · ${esc(a.d||'')}</div></div>
+      <div>${esc(a.winner||'—')}</div><div class="mono">${pk(a.value_num)}</div>
+      <div class="mono" style="color:${a.bids_received===1?'var(--red)':'var(--ink-2)'}">${a.bids_received?a.bids_received+' bid'+(a.bids_received>1?'s':''):'—'}</div></div>`).join('')
+    :'<div style="font-size:12.5px;color:var(--ink-3)">No comparable awards in the database yet.</div>';
 }
 function detailHTML(t){
   const dl=t.closing?Math.round((new Date(t.closing)-new Date())/864e5):null;
@@ -664,6 +746,8 @@ function detailHTML(t){
       <div class="fact"><div class="k">Advertised</div><div class="v" style="font-size:12.5px">${esc(t.advertised||'—')}</div></div>
       <div class="fact"><div class="k">Jurisdiction</div><div class="v" style="font-size:12.5px">${esc(t.jurisdiction||'—')}</div></div>
     </div>
+    <div class="sect" style="display:${t.ai_summary?'block':'none'};border-left:3px solid var(--amber)"><h4>✦ AI brief</h4><div class="aibox" id="ai-${safeId(t.uid)}">${t.ai_summary?esc(t.ai_summary).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>'):''}</div></div>
+    <div class="sect"><h4>Comparable past awards · who won, at what price, how contested</h4><div id="sim-${safeId(t.uid)}"><span style="font-size:12px;color:var(--ink-3)">Loading…</span></div></div>
     ${t.description?`<div class="sect"><h4>As published</h4><p>${esc(t.description)}</p></div>`:''}
     ${(t.bid_security||t.tender_fee||t.est_value_low)?`<div class="sect"><h4>Commercials</h4><p>
       ${t.bid_security?`Bid security: <b>${esc(t.bid_security)}</b>. `:''}
@@ -691,6 +775,7 @@ function detailHTML(t){
       ${t.contact_phone?`<div class="kv"><span>Phone</span><b class="mono">${esc(t.contact_phone)}</b></div>`:''}
     </div>`:''}
     <a class="btn" href="${esc(t.url||'#')}" target="_blank" rel="noopener">Open source notice</a>
+    <button class="btn ghost" style="width:100%;margin-top:8px;border:1px solid var(--amber);color:var(--amber);background:var(--surface)" onclick="aiTender('${esc(t.uid)}',false)">✦ AI brief</button>
   </aside></div>`;
 }
 
@@ -763,7 +848,37 @@ function applyView(rows,vw){
     ((r.fit_score||0) >= (vw.fit||0)));
 }
 
+async function renderExec(){
+  let pq=[]; try{pq=(await api('/api/priority?limit=10')).rows||[]}catch(e){}
+  const cls=a=>a==='Bid now'?'bid':a==='Qualify'?'qual':'watch';
+  const rows=pq.length?pq.map(r=>`<div class="pq" onclick="openTender('${esc(r.uid)}')">
+      <span class="act ${cls(r.action)}">${esc(r.action)}</span>
+      <div><div class="t">${esc(r.title)}</div><div class="w">${esc(r.buyer||'')} · ${esc(r.why)}</div></div>
+      <span style="font-size:11.5px;color:var(--ink-3)">${esc(r.product_line||'')}</span>
+      <span class="sc">${r.score}</span></div>`).join('')
+    :'<div class="bnil" style="margin:14px 18px">No live biddable tenders to rank right now.</div>';
+  document.getElementById('execView').innerHTML=`<div class="exec">
+    <div class="exec-h"><div><b>Executive view</b><span>Live opportunities ranked by fit, urgency and account weight. Each score shows its reasons.</span></div>
+      <button class="iconbtn" id="execBtn" onclick="execNote()">✦ Executive note</button></div>
+    <div class="exec-note" id="execNote" style="display:none"></div>
+    ${rows}</div>`;
+}
+async function execNote(){
+  const el=document.getElementById('execNote'), b=document.getElementById('execBtn');
+  let key=''; try{key=localStorage.getItem('td_akey')||''}catch(e){}
+  el.style.display='block'; el.innerHTML='<span style="color:var(--ink-3)">Writing the executive note from the ranked queue…</span>'; b.textContent='Writing…';
+  try{
+    const r=await api('/api/brief-ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key})});
+    if(r.error){el.innerHTML=`<span style="color:var(--ink-3)">${esc(r.error)}</span>`;}
+    else el.innerHTML=`<div class="hl">${esc(r.headline||'')}</div>
+      ${(r.decisions||[]).length?`<div class="dec">${r.decisions.map(x=>`<div class="dc" onclick="openTender('${esc(x.uid)}')"><span class="act ${x.action==='Bid now'?'bid':x.action==='Qualify'?'qual':'watch'}">${esc(x.action)}</span><b>${esc(x.title||'')}</b>${esc(x.rationale||'')}</div>`).join('')}</div>`:''}
+      ${(r.risks||[]).length?`<div class="rk"><b>Risks.</b> ${r.risks.map(esc).join(' · ')}</div>`:''}
+      ${r.pulse?`<div class="rk"><b>Pulse.</b> ${esc(r.pulse)}</div>`:''}`;
+  }catch(e){el.textContent='Request failed.'}
+  b.textContent='✦ Regenerate';
+}
 async function loadBrief(){
+  renderExec();
   const vw=activeView();
   renderViewPicker();
   const b=await api('/api/brief'+(vw?('?closing_days='+(vw.days||7)):''));
@@ -946,7 +1061,7 @@ async function loadIntel(){
         ${r.incumbent?`<span class="ref">incumbent ${esc(r.incumbent)}</span>`:''}
         <span class="ref">${r.bids_received?r.bids_received+' bidders last time':'bidders not published'}</span>
         <span class="ref">${r.tenure_months||'?'}m term${r.tenure_basis==='assumed'?' (assumed)':r.tenure_basis==='stated'?' (stated)':''}</span></div>
-        <div class="ttitle">${esc(r.title)}</div>
+        <div class="ttitle">${esc(r.title)}${r.url&&String(r.url).startsWith('http')?` <a href="${esc(r.url)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:12px">contract ↗</a>`:''}</div>
         <div class="torg">${esc(r.buyer||'')}${r.winner?' · won by '+esc(r.winner):''}</div></div>
       <div class="tside"><div class="val"><small>${tone==='red'?'Expires':'Back to market'}</small>${esc(r.renewal_due)}</div>
         <div class="val" style="font-size:11px;color:var(--ink-3)">${M(r.value_num)}</div></div>
@@ -1027,9 +1142,22 @@ function mkChart(id,cfg){
 const PKR=v=>!v?'—':(v>=1e9?'PKR '+(v/1e9).toFixed(2)+'B':v>=1e6?'PKR '+(v/1e6).toFixed(1)+'M':'PKR '+Math.round(v/1e3)+'k');
 const MON=k=>k?new Date(k+'-01T00:00:00').toLocaleDateString('en-GB',{month:'short',year:'2-digit'}):'';
 
+let AF={lane:'',sector:'',product:'',buyer:''};
+function setAF(k,v){AF[k]=(AF[k]===v?'':v);loadOverview()}
+function clearAF(k){AF[k]='';loadOverview()}
 async function loadOverview(){
   const mo=document.getElementById('anMonths').value;
-  let a; try{a=await api('/api/analytics?months='+mo)}catch(e){return}
+  const ps=new URLSearchParams({months:mo}); Object.entries(AF).forEach(([k,v])=>{if(v)ps.set(k,v)});
+  let a; try{a=await api('/api/analytics?'+ps)}catch(e){return}
+  const lbl={lane:'Lane',sector:'Sector',product:'Product line',buyer:'Buyer'};
+  const act=Object.entries(AF).filter(([k,v])=>v);
+  document.getElementById('fbar').innerHTML=act.length
+    ?act.map(([k,v])=>`<span class="fchip">${lbl[k]}: ${esc(v)}<button onclick="clearAF('${k}')">×</button></span>`).join('')+
+      `<button class="iconbtn" onclick="AF={lane:'',sector:'',product:'',buyer:''};loadOverview()">Clear all</button>`
+    :'<span style="font-size:12px;color:var(--ink-3)">No filters. Showing everything.</span>';
+  const sg=a.signals||[];
+  document.getElementById('sigs').innerHTML=sg.map(s=>`<div class="sig ${esc(s.tone)}"><b>${esc(s.title)}</b><span>${esc(s.text)}</span></div>`).join('');
+  if(!document.getElementById('nlqChips').innerHTML) renderChips();
   const k=a.kpi||{}, LC={Core:cvar('--mint'),'Partner-led':cvar('--amber'),Signal:cvar('--ink-3')};
   const d7=(k.new_7d||0)-(k.new_prev_7d||0);
   const valued=k.open_opps?Math.round(100*(k.valued||0)/k.open_opps):0;
@@ -1037,11 +1165,15 @@ async function loadOverview(){
     ['Open opportunities',k.open_opps||0,''],
     ['Open in Core lane',k.open_core||0,''],
     ['Disclosed open value',PKR(k.open_value),`<div class="dl" style="color:var(--ink-3)">${valued}% of open have a value</div>`],
-    ['New this week',k.new_7d||0,`<div class="dl" style="color:${d7>=0?'var(--mint)':'var(--red)'}">${d7>=0?'+':''}${d7} vs prior week</div>`],
+    ['New this week',k.new_7d||0,`<div class="dl" style="color:${d7>=0?'var(--mint)':'var(--red)'}">${d7>=0?'+':''}${d7} vs prior week</div><div class="spk"><canvas id="cSpark"></canvas></div>`],
     ['Median bid window',k.median_window!=null?k.median_window+'d':'—',''],
     ['Buyers tracked',k.buyers||0,`<div class="dl" style="color:var(--ink-3)">${k.tracked||0} tenders stored</div>`]
   ].map(([t,v,x])=>`<div class="kpi"><div class="k">${t}</div><div class="v" style="${String(v).length>8?'font-size:18px':''}">${v}</div>${x}</div>`).join('');
 
+  const sp_=a.spark||[];
+  setTimeout(()=>mkChart('cSpark',{type:'line',data:{labels:sp_.map(r=>r.wk),datasets:[{data:sp_.map(r=>r.n),borderColor:cvar('--accent'),
+    backgroundColor:'rgba(14,100,120,.12)',fill:true,tension:.35,pointRadius:0,borderWidth:2}]},
+    options:{plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false}}}}),0);
   const card=(id,span,title,sub,body)=>`<div class="acard ${span}"><h4>${title}</h4><div class="sub">${sub}</div>${body||`<div class="cv"><canvas id="${id}"></canvas></div>`}</div>`;
 
   // heatmap: sector x product line
@@ -1053,7 +1185,7 @@ async function loadOverview(){
   const heat=S.length?`<div class="heat" style="grid-template-columns:150px repeat(${PL.length},minmax(58px,1fr))">
     <div></div>${PL.map(p=>`<div class="hc" title="${esc(p)}">${esc(p)}</div>`).join('')}
     ${S.map(s=>`<div class="hl" title="${esc(s)}">${esc(s)}</div>`+PL.map(p=>{const n=cell(s,p),o=n?(.12+.88*n/hmax):0;
-      return `<div style="background:${n?`rgba(15,158,140,${o.toFixed(2)})`:'var(--surface-2)'};color:${o>.55?'#fff':'var(--ink-2)'}">${n||''}</div>`}).join('')).join('')}</div>`
+      return `<div style="cursor:${n?'pointer':'default'};background:${n?`rgba(15,158,140,${o.toFixed(2)})`:'var(--surface-2)'};color:${o>.55?'#fff':'var(--ink-2)'}" ${n?`onclick="AF.sector='${esc(s)}';AF.product='${esc(p)}';loadOverview()"`:''} title="${esc(s)} · ${esc(p)}">${n||''}</div>`}).join('')).join('')}</div>`
     :'<div class="bnil">No classified opportunities yet.</div>';
 
   const hhi=a.hhi, hhiTxt=hhi==null?'no award data':hhi<1500?'competitive':hhi<2500?'moderately concentrated':'highly concentrated',
@@ -1068,7 +1200,7 @@ async function loadOverview(){
     card('','s12','Where demand sits','Biddable tenders by buyer sector and Jazz product line. Darker cells are denser demand',heat)+
     card('cType','s6','Tender type','All biddable tenders against those still open')+
     card('cBuy','s6','Most active buyers','Biddable tenders per organisation, Core lane highlighted')+
-    `<div class="sect">Award market · ${as.n||0} awards · ${PKR(as.v)} · average ${as.avg_bids||'—'} bidders · ${as.single||0} single-bid</div>`+
+    `<div class="asect">Award market · ${as.n||0} awards · ${PKR(as.v)} · average ${as.avg_bids||'—'} bidders · ${as.single||0} single-bid</div>`+
     card('cAw','s8','Awarded value by month','Value signed each month, with award count')+
     card('cBids','s4','Bidders per award','How contested awards were. One bidder means an uncontested award')+
     card('cSup','s6',`Supplier concentration <span class="badge" style="background:${hhiCol};color:#fff">HHI ${hhi??'—'}</span>`,
@@ -1079,10 +1211,12 @@ async function loadOverview(){
   const months=[...new Set((a.monthly||[]).map(r=>r.m))].sort();
   const ser=l=>months.map(m=>((a.monthly||[]).find(r=>r.m===m&&r.lane===l)||{}).n||0);
   mkChart('cFlow',{type:'bar',stacked:true,data:{labels:months.map(MON),datasets:
-    ['Core','Partner-led','Signal'].map(l=>({label:l,data:ser(l),backgroundColor:LC[l],borderRadius:2}))}});
+    ['Core','Partner-led','Signal'].map(l=>({label:l,data:ser(l),backgroundColor:LC[l],borderRadius:2}))},
+    options:{onClick:(e,el,ch)=>{if(el[0])setAF('lane',ch.data.datasets[el[0].datasetIndex].label)}}});
   const tot=l=>ser(l).reduce((x,y)=>x+y,0);
   mkChart('cLane',{type:'doughnut',data:{labels:['Core','Partner-led','Signal'],datasets:[{data:['Core','Partner-led','Signal'].map(tot),
-    backgroundColor:['Core','Partner-led','Signal'].map(l=>LC[l]),borderWidth:0}]},options:{cutout:'64%',plugins:{legend:{position:'bottom'}}}});
+    backgroundColor:['Core','Partner-led','Signal'].map(l=>LC[l]),borderWidth:0}]},options:{cutout:'64%',plugins:{legend:{position:'bottom'}},
+    onClick:(e,el,ch)=>{if(el[0])setAF('lane',ch.data.labels[el[0].index])}}});
   // weeks
   const wks=[...new Set((a.weeks||[]).map(r=>r.wk))].sort();
   const wlab=wks.map(w=>{const r=(a.weeks||[]).find(x=>x.wk===w);return r?new Date(r.wk_start).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}):w});
@@ -1097,7 +1231,8 @@ async function loadOverview(){
   const tb=a.top_buyers||[];
   mkChart('cBuy',{type:'bar',stacked:true,data:{labels:tb.map(r=>(r.k||'').slice(0,34)),datasets:[
     {label:'Core',data:tb.map(r=>r.core_n),backgroundColor:LC.Core,borderRadius:2},
-    {label:'Other biddable',data:tb.map(r=>r.n-r.core_n),backgroundColor:LC['Partner-led'],borderRadius:2}]},options:{indexAxis:'y'}});
+    {label:'Other biddable',data:tb.map(r=>r.n-r.core_n),backgroundColor:LC['Partner-led'],borderRadius:2}]},
+    options:{indexAxis:'y',onClick:(e,el)=>{if(el[0])setAF('buyer',tb[el[0].index].k)}}});
   // awards
   const am=a.aw_month||[];
   mkChart('cAw',{type:'bar',data:{labels:am.map(r=>MON(r.m)),datasets:[
@@ -1115,12 +1250,46 @@ async function loadOverview(){
     backgroundColor:pal,borderWidth:0}]},options:{cutout:'58%',plugins:{legend:{position:'right'}}}});
 }
 
+
+const SUGGEST=['Which buyers issued the most connectivity tenders in the last 6 months?',
+ 'Total awarded value by winner in Core and Partner-led lanes',
+ 'How many open tenders close in the next 14 days, by product line?',
+ 'Which sectors have the highest share of single-bid awards?',
+ 'Monthly count of new biddable tenders this year',
+ 'Which Jazz contracts renew in the next 12 months?'];
+function renderChips(){document.getElementById('nlqChips').innerHTML=SUGGEST.map(q=>`<span class="chip" onclick="document.getElementById('nlq').value='${q.replace(/'/g,"\\'")}';askData()">${esc(q)}</span>`).join('')}
+async function askData(){
+  const q=document.getElementById('nlq').value.trim(); if(!q)return;
+  let key=''; try{key=localStorage.getItem('td_akey')||''}catch(e){}
+  const box=document.getElementById('nlqAns'); box.style.display='block';
+  box.innerHTML='<div class="txt" style="color:var(--ink-3)">Writing a query, checking it against the safety rules, and running it…</div>';
+  let r; try{r=await api('/api/nlq',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,api_key:key})})}
+  catch(e){box.innerHTML='<div class="txt">Request failed.</div>';return}
+  if(r.error){box.innerHTML=`<div class="txt">${esc(r.error)}</div>${r.sql?`<details><summary>SQL attempted</summary><pre>${esc(r.sql)}</pre></details>`:''}`;return}
+  const cols=r.columns||[], rows=r.rows||[];
+  const x=cols.includes(r.x)?r.x:cols[0], y=cols.includes(r.y)?r.y:cols.find(c=>rows.length&&typeof rows[0][c]==='number');
+  const chartable=r.chart!=='table'&&x&&y&&rows.length>1&&rows.length<=40;
+  box.innerHTML=`<div class="txt">${esc(r.answer||'')}</div>
+    ${chartable?`<div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px">${esc(r.title||'')}</div><div class="cv"><canvas id="cNlq"></canvas></div>`:''}
+    <details ${chartable?'':'open'}><summary>Result table · ${r.row_count} row${r.row_count===1?'':'s'}</summary>
+      <div style="overflow-x:auto"><table><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr>
+      ${rows.slice(0,50).map(rr=>`<tr>${cols.map(c=>`<td>${esc(rr[c]??'')}</td>`).join('')}</tr>`).join('')}</table></div></details>
+    <details><summary>SQL that produced this answer</summary><pre>${esc(r.sql||'')}</pre></details>`;
+  if(chartable){
+    const type=r.chart==='line'?'line':r.chart==='doughnut'?'doughnut':'bar';
+    const pal=[cvar('--accent'),cvar('--mint'),cvar('--amber'),'#7C6BD6','#C97C3A','#3D7EA6','#B5566E','#2F8F63'];
+    mkChart('cNlq',{type,data:{labels:rows.map(rr=>String(rr[x]).slice(0,32)),datasets:[{label:y,data:rows.map(rr=>rr[y]),
+      backgroundColor:type==='doughnut'?pal:cvar('--accent'),borderColor:cvar('--accent'),borderRadius:2,tension:.3,fill:false}]},
+      options:{indexAxis:type==='bar'&&rows.length>8?'y':'x',plugins:{legend:{display:type==='doughnut'}}}});
+  }
+}
+
 async function genInsights(){
   const b=document.getElementById('aiBtn'), t=document.getElementById('aiText');
   let key=''; try{key=localStorage.getItem('td_akey')||''}catch(e){}
   b.textContent='Writing…'; t.textContent='Reading the dashboard figures…';
   try{
-    const r=await api('/api/insights',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key})});
+    const r=await api('/api/insights',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key,filters:AF})});
     t.innerHTML=esc(r.text||'').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
   }catch(e){t.textContent='Request failed.'}
   b.textContent='Regenerate';

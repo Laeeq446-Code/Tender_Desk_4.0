@@ -25,7 +25,13 @@ import re
 
 # ── CORE: Jazz can bid essentially alone. Keyed by product line.
 CORE = {
+    "Voice & UC": [
+        "sip trunk", "sip trunking", "toll free", "uan", "pri line", "pri", "e1 line", "e1 lines",
+        "ip telephony", "voip", "voice services", "voice gateway", "ip pbx", "ippbx", "pabx",
+        "telephone exchange", "hosted pbx", "unified communication", "teams calling", "landline",
+    ],
     "Connectivity": [
+        "intranet link", "internet link", "data link", "link between", "wan link", "ipv4", "ipv6", "ip address", "asn", "apnic", "ip transit", "dedicated internet access", "dia", "iplc", "ofc", "optical fiber", "optical fibre", "microwave radio", "radio link", "multiplexer", "fmx", "msap", "sdh", "infinet", "point to multipoint", "wifi", "wi-fi", "isp", "internet service provider", "internet services", "internet connection", "cir", "lte", "4g", "5g", "wireless data", "data services", "data connection", "mobile data", "mifi", "dongle", "data sim", "sim based", "satellite phone", "satellite internet", "bgan", "thuraya", "inmarsat", "starlink",
         "fiber optic", "fibre optic", "fiber", "fibre", "ftth", "fttx", "gpon", "epon",
         "dark fib", "leased line", "last mile", "backhaul", "backbone network",
         "bandwidth", "internet service", "internet connectivity", "internet bandwidth",
@@ -40,6 +46,7 @@ CORE = {
         "network rollout", "network expansion", "right of way", "duct",
     ],
     "Enterprise Mobility": [
+        "cellular services", "cellular connections", "mobile connections", "gsm", "push to talk", "ptt",
         "sim card", "e-sim", "esim", "corporate sim", "bulk sim", "mobile subscription",
         "cellular service", "mobile service", "voice service", "airtime",
         "closed user group", "cug", "mobile connection", "postpaid connection",
@@ -47,6 +54,7 @@ CORE = {
         "base station", "bts", "in-building solution", "ibs", "tower colocation",
     ],
     "IoT & M2M": [
+        "tracker", "trackers", "tracking device", "vehicle tracking", "avl", "rtu", "remote terminal unit", "communication gateway", "smart metering", "metering", "sensor", "sensors", "early warning system", "lora", "nb-iot", "nbiot", "geo-fencing", "geofencing",
         "iot", "internet of things", "m2m", "machine to machine", "telemetry",
         "telemetric", "smart meter", "ami system", "amr system", "meter data",
         "sensor network", "remote monitoring", "asset tracking", "vehicle tracking",
@@ -54,6 +62,7 @@ CORE = {
         "scada communication", "rtu communication",
     ],
     "Messaging & CX": [
+        "sms", "short code", "whatsapp", "chatbot", "bot", "call center", "call centre", "contact center", "contact centre", "helpdesk services", "a2p",
         "bulk sms", "sms gateway", "sms service", "sms platform", "short code",
         "ussd", "ivr", "voice broadcast", "call cent", "contact cent", "helpline",
         "notification platform", "citizen notification", "alert system",
@@ -62,6 +71,7 @@ CORE = {
         "whatsapp business", "chatbot service", "omnichannel",
     ],
     "Digital Financial Services": [
+        "pos terminal", "qr payment", "qr code payment", "collection system", "online fee", "e-challan", "challan", "payment solution", "payment system", "wallet", "jazzcash", "easypaisa", "raast", "ibft", "loan origination", "lending", "credit scoring", "microfinance solution", "core banking", "digital banking", "e-commerce", "ecommerce", "marketplace",
         "mobile wallet", "mobile money", "branchless banking", "payment gateway",
         "e-payment", "digital payment", "payment collection", "fee collection",
         "g2p", "disbursement", "stipend disbursement", "cash transfer",
@@ -69,6 +79,7 @@ CORE = {
         "merchant acquiring", "bill payment", "salary disbursement",
     ],
     "Cloud & Hosting": [
+        "dns", "managed dns", "gpu", "cloud infrastructure", "web hosting", "website hosting", "email hosting", "data center", "data centre", "tier iii", "dr site", "disaster recovery", "backup solution", "object storage", "sovereign cloud",
         "cloud service", "cloud subscription", "cloud hosting", "cloud migration",
         "iaas", "paas", "public cloud", "private cloud", "colocation", "co-location",
         "data cent", "datacent", "disaster recovery site", "dr site", "hosting service",
@@ -82,6 +93,7 @@ CORE = {
 # ── PARTNER: Jazz leads a consortium or owns the network layer.
 PARTNER = {
     "Managed Security": [
+        "firewall", "next generation firewall", "detection and response", "extended detection", "ndr", "xdr", "edr", "forti", "fortinet", "forti token", "network access control", "nac", "vpn", "endpoint", "waf", "dlp", "email security", "pam", "security equipment", "cyber", "fraud risk", "fraud management", "efrm", "anti-fraud", "security audit", "penetration", "ddos",
         "security operation cent", "security operations cent", "soc service", "siem", "soar", "managed security",
         "cyber security service", "cybersecurity service", "threat intelligence",
         "ddos protection", "anti-ddos", "penetration test", "vapt",
@@ -91,12 +103,14 @@ PARTNER = {
         "fortigate", "firewall rental", "web application firewall",
     ],
     "Smart City & Surveillance": [
+        "smart surveillance", "access control", "cctv", "surveillance system", "integrated surveillance", "video analytics", "camera analytics", "anpr", "traffic management", "command center",
         "safe city", "smart city", "command and control cent", "command centre",
         "integrated traffic", "surveillance network", "cctv network",
         "video management system", "anpr", "number plate recognition",
         "emergency response system", "911 system", "1122 system",
     ],
     "Systems Integration": [
+        "information system", "hmis", "hrmis", "lmis", "pmis", "erp", "software solution", "software development", "examination system", "computer based examination", "cbe", "e-office", "portal", "mobile application", "turnkey", "network equipment", "integration", "implementation", "lan solution", "wireless lan", "structured network", "video conferencing", "video conference", "telepresence", "conference solution", "dashboard visualization", "video wall", "vdi", "virtual desktop", "next generation technologies", "technology complex", "ar/vr", "augmented reality", "virtual reality", "projection mapping", "production monitoring", "production counting",
         "system integration", "systems integration", "turnkey solution",
         "end to end solution", "digital transformation", "digitiz", "digitis",
         "automation of", "e-office", "e-governance", "e-government",
@@ -105,6 +119,7 @@ PARTNER = {
         "case management system", "billing system", "revenue management system",
     ],
     "Data & Analytics": [
+        "data management", "monitoring hub", "insights", "discourse analysis", "trend analysis", "analytics", "ai enabled", "ai-enabled", "artificial intelligence", "ai infrastructure", "sovereign ai", "nlp", "ocr", "machine learning", "big data", "data warehouse", "business intelligence",
         "data analytic", "business intelligence", "data warehouse", "data lake",
         "artificial intelligence", "machine learning", "predictive analytic",
         "big data", "dashboard development", "gis system", "geographic information",
@@ -117,6 +132,7 @@ PARTNER = {
 # ── SIGNAL: not biddable, but shows digitisation budget and intent.
 SIGNAL = {
     "IT Procurement": [
+        "managed printing", "copying and scanning", "database appliance", "tape library", "storage", "desktop", "desktops", "computer", "computers", "ip phone", "ip phones", "it equipment", "hardware", "scanners", "biometric devices", "tablets", "led", "smd screen", "interactive screen",
         "laptop", "desktop computer", "notebook computer", "workstation", "tablet",
         "printer", "scanner", "photocopier", "multifunction device", "toner",
         "computer hardware", "it equipment", "ict equipment", "peripheral",
@@ -125,6 +141,7 @@ SIGNAL = {
         "router", "switch", "access point", "firewall appliance", "structured cabling",
     ],
     "Software Licensing": [
+        "oracle", "microsoft", "office 365", "licenses", "licences", "license renewal", "veeam", "sap hardware", "support renewal",
         "software licen", "microsoft licen", "office 365", "microsoft 365",
         "oracle licen", "sap licen", "antivirus", "annual technical support",
         "ats renewal", "subscription renewal", "software maintenance",
@@ -132,6 +149,7 @@ SIGNAL = {
         "software development", "database licen",
     ],
     "IT Services": [
+        "technical audit", "software audit", "cms", "it support", "annual maintenance",
         "it support", "it services", "helpdesk", "service desk", "manpower for it",
         "outsourcing of it", "technical staff", "software house", "consultancy for it",
         "feasibility study", "it audit", "training", "capacity building",
@@ -233,7 +251,7 @@ def _hits(groups, text):
     return out
 
 
-CLASSIFIER_VERSION = "5.1"
+CLASSIFIER_VERSION = "6.0"
 
 # ── second-order dimensions used by analytics ─────────────────────────
 CITIES = ["islamabad", "rawalpindi", "karachi", "lahore", "peshawar", "quetta",

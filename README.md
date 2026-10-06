@@ -313,3 +313,22 @@ New optional variables: SESSION_SECRET, DETAIL_PER_SCAN (default 30).
 ## Version 5.1 · Analytics
 
 Overview is now Analytics, built on Chart.js with a period selector: KPI strip with week-on-week momentum and value-disclosure rate; opportunity flow by month and lane; lane mix; deadlines in the next eight weeks; bid-window distribution; a sector-by-product-line demand heatmap; tender types; most active buyers; and an award market section with value by month, bidders per award, and supplier concentration (Herfindahl-Hirschman Index). An AI read-out writes five insights grounded only in the figures on the page, using the key saved in the Ask tab. Classifier 5.1 reclassifies on startup.
+
+
+## Version 6.0 · AI layer
+
+Executive view on the Brief: a priority queue ranking live opportunities by fit,
+urgency and account weight, with reasons on every row, plus an AI executive note
+(headline, decisions, risks, pulse) validated against the queue.
+Feed: an AI star on every tender opens an AI brief grounded in comparable past
+awards, cached per tender. Every tender shows comparable awards (winner, price,
+bidders) without a model.
+Analytics rebuilt: Ask your data (governed text-to-SQL with the SQL shown),
+click-to-filter charts and heatmap, filter chips, rule-based signal cards,
+sparkline KPIs, and an AI read-out that honours filters.
+Keywords: lexicon rebuilt across all lines, new Voice & UC line. Biddable recall
+on a 64-title test set rose from 55% to 100% with no false positives on 16
+negatives. Classifier 6.0 reclassifies stored rows on startup.
+Awards: scheduled scans re-sweep two months by date window so late-published
+awards are captured; awards store the originating TS number and link to
+tenders; Intelligence rows link to the contract page.

@@ -705,9 +705,11 @@ def api_intelligence(request: Request, horizon: int = 540):
 
 
 @app.get("/api/analytics")
-def api_analytics(request: Request, months: int = 18):
+def api_analytics(request: Request, months: int = 18, lane: str = None,
+                  sector: str = None, product: str = None, buyer: str = None):
     require(request)
-    return db.analytics(months=months)
+    return db.analytics(months=months, lane=lane, sector=sector,
+                        product=product, buyer=buyer)
 
 
 @app.post("/api/insights")
@@ -723,7 +725,9 @@ async def api_insights(request: Request):
     key = (body.get("api_key") or os.getenv("ANTHROPIC_API_KEY", "")).strip()
     if not key:
         return {"text": "Add an Anthropic key in the Ask tab to generate insights."}
-    data = db.analytics()
+    fl = body.get("filters") or {}
+    data = db.analytics(lane=fl.get("lane") or None, sector=fl.get("sector") or None,
+                        product=fl.get("product") or None, buyer=fl.get("buyer") or None)
     intel = db.intelligence()
     compact = {
         "kpi": data["kpi"], "bid_window_histogram": data["window_hist"],
@@ -1035,3 +1039,161 @@ def health():
 def index():
     with open(UI_FILE, encoding="utf-8") as f:
         return f.read()
+
+
+
+# ═══════════════════════════════════════════════ AI services (v6)
+
+def _key(body):
+    return ((body or {}).get("api_key") or os.getenv("ANTHROPIC_API_KEY", "")).strip()
+
+
+def _claude(system, user, key, max_tokens=900):
+    """Single entry point for model calls, so every feature shares one model
+    setting, one timeout and one error contract."""
+    import requests as _rq
+    r = _rq.post("https://api.anthropic.com/v1/messages",
+                 headers={"x-api-key": key, "anthropic-version": "2023-06-01",
+                          "content-type": "application/json"},
+                 json={"model": LLM_MODEL, "max_tokens": max_tokens, "system": system,
+                       "messages": [{"role": "user", "content": user}]}, timeout=75)
+    j = r.json()
+    if r.status_code != 200:
+        raise RuntimeError(j.get("error", {}).get("message", "API error")[:200])
+    return "".join(b.get("text", "") for b in j.get("content", []))
+
+
+def _json_from(text):
+    import json as _json, re as _re
+    m = _re.search(r"\{.*\}", text or "", _re.S)
+    return _json.loads(m.group(0)) if m else None
+
+
+NO_KEY = "Add an Anthropic key in the Ask tab to use AI features."
+
+
+@app.get("/api/priority")
+def api_priority(request: Request, limit: int = 12):
+    require(request)
+    return {"rows": db.priority_queue(limit)}
+
+
+@app.post("/api/brief-ai")
+async def api_brief_ai(request: Request):
+    """Executive note: a headline, the decisions for today, risks and pulse.
+    Grounded only in the priority queue, the brief and award intelligence."""
+    require(request)
+    import json as _json
+    body = await request.json()
+    key = _key(body)
+    if not key:
+        return {"error": NO_KEY}
+    pq = db.priority_queue(10)
+    br = db.brief()
+    intel = db.intelligence()
+    ctx = {
+        "priority_queue": [{k: r.get(k) for k in ("uid", "title", "buyer", "lane", "product_line",
+                            "days_left", "score", "action", "why")} for r in pq],
+        "new_count": len(br.get("new", [])), "closing_count": len(br.get("closing", [])),
+        "portal_changes": [{k: m.get(k) for k in ("title", "field", "old_value", "new_value")}
+                           for m in br.get("moved", [])[:6]],
+        "jazz_share_pct": intel["stats"].get("our_share"),
+        "jazz_contracts_expiring": [{k: x.get(k) for k in ("title", "buyer", "renewal_due", "value_num")}
+                                    for x in intel.get("defend", [])[:5]],
+        "competitor_contracts_returning": [{k: x.get(k) for k in ("title", "buyer", "winner", "renewal_due", "value_num")}
+                                           for x in intel.get("attack", [])[:5]],
+        "signals": db.signals(),
+    }
+    system = ("You brief the Chief Commercial and Strategy officers of Jazz on B2G tenders. "
+              "Use only the JSON provided. Return ONLY a JSON object with keys: "
+              "headline (one sentence, a claim), decisions (array of up to 3 objects with uid, "
+              "action one of Bid now|Qualify|Watch, title, rationale under 30 words), "
+              "risks (array of up to 3 short strings), pulse (one sentence on market direction). "
+              "Never invent tenders, buyers or figures. If the queue is empty, say so in the headline.")
+    try:
+        txt = _claude(system, _json.dumps(ctx, default=str), key, 800)
+        out = _json_from(txt) or {"headline": txt[:300], "decisions": [], "risks": [], "pulse": ""}
+        valid = {r["uid"] for r in pq}
+        out["decisions"] = [x for x in out.get("decisions", []) if x.get("uid") in valid]
+        return out
+    except Exception as e:
+        return {"error": f"Claude API: {e}"}
+
+
+@app.get("/api/similar/{uid:path}")
+def api_similar(uid: str, request: Request):
+    require(request)
+    return {"rows": db.similar_awards(uid)}
+
+
+@app.post("/api/tender-ai/{uid:path}")
+async def api_tender_ai(uid: str, request: Request):
+    """Per-tender AI brief, cached so each tender costs one call."""
+    require(request)
+    import json as _json
+    body = await request.json()
+    t = db.get(uid)
+    if not t:
+        raise HTTPException(404, "Not found")
+    cached = db.ai_cache_get(uid)
+    if cached and cached.get("ai_summary") and not body.get("refresh"):
+        return {"text": cached["ai_summary"], "cached": True, "at": cached.get("ai_at")}
+    key = _key(body)
+    if not key:
+        return {"text": NO_KEY}
+    sim = db.similar_awards(uid)
+    ctx = {"tender": {k: t.get(k) for k in ("title", "buyer", "buyer_norm", "buyer_sector", "lane",
+                      "product_line", "tender_type", "fit_score", "rationale", "digital_evidence",
+                      "advertised", "closing", "value_text", "bid_security", "est_value_low",
+                      "est_value_high", "eligibility", "scope", "description")},
+           "comparable_awards": sim}
+    system = ("You are a bid manager at Jazz, a Pakistani telecom operator with enterprise "
+              "connectivity, mobility, IoT, messaging, cloud and digital financial services. "
+              "Using only the JSON, write five short labelled sections: **What it is**, "
+              "**Jazz fit**, **Requirements to check**, **Competition and price** (use the "
+              "comparable awards; if none, say there is no benchmark), and "
+              "**Recommendation** (Bid, Qualify or Pass, with one reason). Under 170 words. "
+              "Flag anything that would need the bid document to confirm. No em dashes.")
+    try:
+        txt = _claude(system, _json.dumps(ctx, default=str), key, 600)
+        db.ai_cache_set(uid, txt)
+        return {"text": txt, "cached": False}
+    except Exception as e:
+        return {"text": f"Claude API: {e}"}
+
+
+@app.post("/api/nlq")
+async def api_nlq(request: Request):
+    """Ask your data. The model writes one read-only SQL query against a
+    documented schema; the server validates and runs it under guardrails;
+    a second short call explains the result. The SQL is returned so every
+    answer can be inspected."""
+    require(request)
+    import json as _json
+    body = await request.json()
+    q = (body.get("question") or "").strip()
+    key = _key(body)
+    if not q:
+        return {"error": "Ask a question."}
+    if not key:
+        return {"error": NO_KEY}
+    sys1 = ("Translate the question into ONE SQLite SELECT query using this schema.\n"
+            + db.NLQ_SCHEMA +
+            "\nReturn ONLY JSON: {\"sql\": \"...\", \"chart\": \"bar|line|doughnut|table\", "
+            "\"x\": \"column for categories\", \"y\": \"numeric column\", \"title\": \"short chart title\"}. "
+            "Aggregate where a chart helps, limit to 25 categories, order sensibly.")
+    try:
+        spec = _json_from(_claude(sys1, q, key, 500)) or {}
+        cols, rows = db.run_readonly_sql(spec.get("sql", ""))
+    except Exception as e:
+        return {"error": f"Could not answer that: {e}", "sql": (locals().get("spec") or {}).get("sql")}
+    sys2 = ("Answer the user's question in two or three sentences using only these query "
+            "results. Lead with the number. If the results are empty, say so plainly. No em dashes.")
+    try:
+        answer = _claude(sys2, _json.dumps({"question": q, "columns": cols,
+                                            "rows": rows[:60]}, default=str), key, 250)
+    except Exception as e:
+        answer = f"Query ran; explanation unavailable ({e})."
+    return {"answer": answer, "sql": spec.get("sql"), "chart": spec.get("chart", "table"),
+            "x": spec.get("x"), "y": spec.get("y"), "title": spec.get("title"),
+            "columns": cols, "rows": rows[:200], "row_count": len(rows)}

@@ -1194,7 +1194,7 @@ class EPMSAwards(Source):
     home = "https://epms.ppra.gov.pk"
     LIST = "/public/contracts"
     delay = 0.7
-    months_back = 0          # backfill sets this to sweep history by month
+    months_back = 2          # scans re-sweep two months; backfill sets more
     detail_limit = 120       # detail pages fetched per run, biddable lanes only
 
     def parse_row(self, tr):
